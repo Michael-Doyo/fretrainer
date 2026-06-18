@@ -14,7 +14,7 @@ export const Route = createFileRoute("/")({
 });
 
 const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
-// Standard tuning, low E (string 6) to high E (string 1). Index 0 = high E for display.
+// Display order: high E (thinnest) on top → low E (thickest) on bottom.
 const STRINGS = [
   { name: "E", openMidi: 64 }, // high E (1st)
   { name: "B", openMidi: 59 },
@@ -28,14 +28,26 @@ const FRETS = 12;
 const midiToName = (m: number) => NOTE_NAMES[((m % 12) + 12) % 12];
 const noteAt = (stringIdx: number, fret: number) => midiToName(STRINGS[stringIdx].openMidi + fret);
 
-type Mode = "find-note" | "name-note" | "scale";
+type Mode = "find-note" | "name-note" | "scale" | "guitar";
 
 type Target = { stringIdx: number; fret: number; note: string };
 
-function randomTarget(): Target {
-  const stringIdx = Math.floor(Math.random() * 6);
-  const fret = Math.floor(Math.random() * (FRETS + 1));
-  return { stringIdx, fret, note: noteAt(stringIdx, fret) };
+function randomTarget(allowedStrings: number[], allowedNotes: string[]): Target {
+  const strings = allowedStrings.length ? allowedStrings : [0, 1, 2, 3, 4, 5];
+  const notes = allowedNotes.length ? allowedNotes : NOTE_NAMES;
+  // try random positions until note matches; fallback to brute search
+  for (let i = 0; i < 80; i++) {
+    const stringIdx = strings[Math.floor(Math.random() * strings.length)];
+    const fret = Math.floor(Math.random() * (FRETS + 1));
+    const note = noteAt(stringIdx, fret);
+    if (notes.includes(note)) return { stringIdx, fret, note };
+  }
+  const candidates: Target[] = [];
+  for (const s of strings) for (let f = 0; f <= FRETS; f++) {
+    const n = noteAt(s, f);
+    if (notes.includes(n)) candidates.push({ stringIdx: s, fret: f, note: n });
+  }
+  return candidates[Math.floor(Math.random() * candidates.length)] ?? { stringIdx: 0, fret: 0, note: noteAt(0, 0) };
 }
 
 // ---- Pitch detection (autocorrelation) ----
@@ -72,7 +84,10 @@ const freqToMidi = (f: number) => Math.round(69 + 12 * Math.log2(f / 440));
 
 function Index() {
   const [mode, setMode] = useState<Mode>("find-note");
-  const [target, setTarget] = useState<Target>(() => randomTarget());
+  const [allowedStrings, setAllowedStrings] = useState<number[]>([0, 1, 2, 3, 4, 5]);
+  const [allowedNotes, setAllowedNotes] = useState<string[]>([...NOTE_NAMES]);
+  // Deterministic initial value to avoid SSR/CSR hydration mismatch; randomize after mount.
+  const [target, setTarget] = useState<Target>({ stringIdx: 0, fret: 0, note: noteAt(0, 0) });
   const [score, setScore] = useState(0);
   const [streak, setStreak] = useState(0);
   const [detectedNote, setDetectedNote] = useState<string | null>(null);
@@ -85,9 +100,15 @@ function Index() {
   const lastCorrectRef = useRef<number>(0);
 
   const next = () => {
-    setTarget(randomTarget());
+    setTarget(randomTarget(allowedStrings, allowedNotes));
     setFeedback("idle");
   };
+
+  // Randomize after mount to keep SSR HTML stable.
+  useEffect(() => {
+    setTarget(randomTarget(allowedStrings, allowedNotes));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleCorrect = () => {
     const now = Date.now();
@@ -97,9 +118,9 @@ function Index() {
     setStreak((s) => s + 1);
     setFeedback("correct");
     setTimeout(() => {
-      setTarget(randomTarget());
+      setTarget(randomTarget(allowedStrings, allowedNotes));
       setFeedback("idle");
-    }, 700);
+    }, 600);
   };
 
   const handleWrong = () => {
@@ -108,11 +129,17 @@ function Index() {
     setTimeout(() => setFeedback("idle"), 500);
   };
 
-  // Check detected note against target (find-note & name-note modes)
+  // Check detected note against target (mic-driven modes)
   useEffect(() => {
     if (!detectedNote || feedback !== "idle") return;
     if (detectedNote === target.note) handleCorrect();
   }, [detectedNote, target, feedback]);
+
+  // Guitar mode: auto-enable mic when selected, stop when leaving.
+  useEffect(() => {
+    if (mode === "guitar" && !micOn) startMic();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
 
   async function startMic() {
     if (audioRef.current) return;
@@ -162,10 +189,25 @@ function Index() {
   }, [detectedFreq]);
 
   const promptText = useMemo(() => {
-    if (mode === "find-note") return `Play ${target.note} — string ${6 - target.stringIdx} (${STRINGS[target.stringIdx].name}), fret ${target.fret}`;
-    if (mode === "name-note") return `What note is this? (play it!)`;
+    const stringNum = target.stringIdx + 1; // 1 = high E (top)
+    if (mode === "find-note") return `Play ${target.note} — string ${stringNum} (${STRINGS[target.stringIdx].name}), fret ${target.fret}`;
+    if (mode === "name-note") return `What note is this?`;
+    if (mode === "guitar") return `🎸 Play ${target.note} on string ${stringNum} (${STRINGS[target.stringIdx].name}), fret ${target.fret}`;
     return `Play any ${target.note} on the fretboard`;
   }, [mode, target]);
+
+  const toggleString = (i: number) =>
+    setAllowedStrings((cur) => {
+      const has = cur.includes(i);
+      const nxt = has ? cur.filter((x) => x !== i) : [...cur, i].sort((a, b) => a - b);
+      return nxt.length ? nxt : cur; // never allow zero
+    });
+  const toggleNote = (n: string) =>
+    setAllowedNotes((cur) => {
+      const has = cur.includes(n);
+      const nxt = has ? cur.filter((x) => x !== n) : [...cur, n];
+      return nxt.length ? nxt : cur;
+    });
 
   return (
     <div className="min-h-screen bg-[#0e0e12] text-zinc-100">
@@ -191,6 +233,7 @@ function Index() {
             ["find-note", "Find the Note"],
             ["name-note", "Name the Note"],
             ["scale", "Free Play"],
+            ["guitar", "Guitar Mode 🎸"],
           ] as [Mode, string][]).map(([m, label]) => (
             <button
               key={m}
@@ -202,6 +245,40 @@ function Index() {
             onClick={() => setShowAll((s) => !s)}
             className="ml-auto px-3 py-1.5 rounded-full text-sm bg-zinc-800 hover:bg-zinc-700"
           >{showAll ? "Hide note names" : "Show all notes"}</button>
+        </div>
+
+        {/* Practice filters */}
+        <div className="grid sm:grid-cols-2 gap-3 mb-4">
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-3">
+            <div className="text-xs uppercase tracking-wider text-zinc-500 mb-2">Strings to practice</div>
+            <div className="flex flex-wrap gap-1.5">
+              {STRINGS.map((s, i) => {
+                const on = allowedStrings.includes(i);
+                return (
+                  <button
+                    key={i}
+                    onClick={() => toggleString(i)}
+                    className={`px-2.5 py-1 rounded-md text-xs font-mono border ${on ? "bg-amber-400 text-zinc-900 border-amber-400" : "bg-zinc-800/60 text-zinc-500 border-zinc-700 opacity-60"}`}
+                  >{i + 1} · {s.name}</button>
+                );
+              })}
+            </div>
+          </div>
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-3">
+            <div className="text-xs uppercase tracking-wider text-zinc-500 mb-2">Notes to focus on</div>
+            <div className="flex flex-wrap gap-1.5">
+              {NOTE_NAMES.map((n) => {
+                const on = allowedNotes.includes(n);
+                return (
+                  <button
+                    key={n}
+                    onClick={() => toggleNote(n)}
+                    className={`px-2 py-1 rounded-md text-xs font-mono border ${on ? "bg-amber-400 text-zinc-900 border-amber-400" : "bg-zinc-800/60 text-zinc-500 border-zinc-700 opacity-60"}`}
+                  >{n}</button>
+                );
+              })}
+            </div>
+          </div>
         </div>
 
         {/* Prompt */}
@@ -229,7 +306,13 @@ function Index() {
         </div>
 
         {/* Fretboard */}
-        <Fretboard target={target} showAll={showAll} highlightNote={mode === "scale" ? target.note : null} feedback={feedback} />
+        <Fretboard
+          target={target}
+          showAll={showAll}
+          highlightNote={mode === "scale" ? target.note : null}
+          feedback={feedback}
+          allowedStrings={allowedStrings}
+        />
 
         {/* Mic panel */}
         <div className="mt-6 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5">
