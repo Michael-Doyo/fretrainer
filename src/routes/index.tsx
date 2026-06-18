@@ -360,31 +360,37 @@ function Fretboard({
   showAll,
   highlightNote,
   feedback,
+  allowedStrings,
 }: {
   target: Target;
   showAll: boolean;
   highlightNote: string | null;
   feedback: "idle" | "correct" | "wrong";
+  allowedStrings: number[];
 }) {
   const inlayFrets = [3, 5, 7, 9, 12];
   return (
-    <div className="rounded-2xl border border-zinc-800 bg-gradient-to-b from-[#1a140d] to-[#0f0b07] p-3 sm:p-5 overflow-x-auto">
-      <div className="min-w-[820px]">
+    <div className="rounded-2xl border border-zinc-800 bg-gradient-to-b from-[#1a140d] to-[#0f0b07] p-3 sm:p-5 overflow-hidden">
+      <div className="w-full">
         {/* Fret numbers */}
-        <div className="flex pl-10 mb-2">
+        <div className="flex pl-8 sm:pl-10 mb-2">
           {Array.from({ length: FRETS + 1 }).map((_, f) => (
-            <div key={f} className="flex-1 text-center text-[10px] text-zinc-500 font-mono">{f}</div>
+            <div key={f} className="flex-1 text-center text-[9px] sm:text-[10px] text-zinc-500 font-mono">{f}</div>
           ))}
         </div>
 
-        {STRINGS.map((s, sIdx) => (
-          <div key={sIdx} className="flex items-center h-10">
-            <div className="w-10 text-right pr-3 text-sm font-mono text-zinc-400">{s.name}</div>
+        {STRINGS.map((s, sIdx) => {
+          const muted = !allowedStrings.includes(sIdx);
+          // High E (sIdx 0) thinnest on top → low E (sIdx 5) thickest on bottom.
+          const thickness = Math.max(1, (sIdx + 1) * 0.6);
+          return (
+          <div key={sIdx} className={`flex items-center h-9 sm:h-10 transition-opacity ${muted ? "opacity-25" : "opacity-100"}`}>
+            <div className="w-8 sm:w-10 text-right pr-2 sm:pr-3 text-xs sm:text-sm font-mono text-zinc-400">{s.name}</div>
             <div className="flex-1 flex relative">
               {/* string line */}
               <div
                 className="absolute left-0 right-0 top-1/2 -translate-y-1/2 bg-zinc-500/70"
-                style={{ height: `${Math.max(1, (6 - sIdx) * 0.6)}px` }}
+                style={{ height: `${thickness}px` }}
               />
               {Array.from({ length: FRETS + 1 }).map((_, f) => {
                 const isTarget = sIdx === target.stringIdx && f === target.fret;
@@ -437,7 +443,8 @@ function Fretboard({
               })}
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
