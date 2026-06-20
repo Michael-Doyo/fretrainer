@@ -488,8 +488,8 @@ function Index() {
   }
 
   return (
-    <div ref={rootRef} className="h-[100dvh] bg-[#0e0e12] text-zinc-100 overflow-hidden flex flex-col">
-      <div className="mx-auto w-full max-w-6xl px-3 py-2 flex flex-col gap-2 flex-1 min-h-0">
+    <div ref={rootRef} className="min-h-[100dvh] bg-[#0e0e12] text-zinc-100 overflow-y-auto flex flex-col">
+      <div className="mx-auto w-full max-w-6xl px-3 py-2 flex flex-col gap-2 flex-1">
 
         {/* HEADER */}
         <header data-tour="tour-header" className="flex items-center justify-between gap-2">
