@@ -428,17 +428,26 @@ function Index() {
 
   /* ── Tour ── */
   const TOUR: { sel: string; text: string }[] = [
-    { sel: "tour-modes", text: "Choose a practice mode here." },
-    { sel: "tour-tuner", text: "Tuner button — tune your guitar before playing." },
-    { sel: "tour-showall", text: "Toggle showing every note on the fretboard." },
-    { sel: "tour-tolerance", text: "Pitch tolerance — how close your mic pitch must match (in cents)." },
-    { sel: "tour-strings", text: "Pick which strings to practice." },
-    { sel: "tour-notes", text: "Pick which notes to focus on." },
-    { sel: "tour-challenge", text: "The current challenge — note name (large) and string number (small)." },
-    { sel: "tour-fretboard", text: "The fretboard. Fret 0 is the nut; markers sit between G and D." },
-    { sel: "tour-choices", text: "Tap the correct note name to answer." },
+    { sel: "tour-header", text: "Top bar: score, streak and accuracy of your session." },
+    { sel: "tour-sound", text: "Sound toggle for ticks and answer feedback." },
+    { sel: "tour-fs", text: "Fullscreen — landscape view with only fretboard + challenge." },
+    { sel: "tour-tourbtn", text: "Open this guided tour anytime." },
+    { sel: "tour-tuner", text: "Tuner — opens the analog tuner. Mic only enables in Guitar mode." },
+    { sel: "tour-mode-find-note", text: "Find It mode: a note is given — tap its position on the fretboard." },
+    { sel: "tour-mode-name-note", text: "Name It mode: a fret is shown — pick its note name from four choices." },
+    { sel: "tour-mode-guitar", text: "Guitar mode: use your guitar (mic) to answer. Has Learn/Quiz sub-modes." },
+    { sel: "tour-mode-all-strings", text: "All Strings mode: play the given note on every selected string." },
+    { sel: "tour-mode-play-along", text: "Play-Along mode: notes blink across strings, low E → high E, with a metronome tick." },
+    { sel: "tour-mode-scale", text: "Free Play: explore the board with no quiz." },
+    { sel: "tour-showall", text: "Show / hide every note across the fretboard." },
+    { sel: "tour-tolerance", text: "Pitch tolerance (cents) — how close your mic pitch must match." },
+    { sel: "tour-speed", text: "Speed levels 1–7 for Play-Along: 1=one note / 5s … 7=three notes / sec." },
+    { sel: "tour-strings", text: "Toggle which strings to practice. Disabled strings fade on the board." },
+    { sel: "tour-notes", text: "Toggle which notes to focus on this session." },
+    { sel: "tour-challenge", text: "Challenge box: the current note. In Name It, the string is revealed only after a correct answer." },
+    { sel: "tour-fretboard", text: "Fretboard. Fret 0 is the nut; gold markers sit between G and D." },
     { sel: "tour-noterow", text: "Per-note accuracy across your session." },
-    { sel: "tour-header", text: "Score, accuracy, sound, fullscreen and Tour live up here." },
+    { sel: "tour-mic", text: "Mic status and toggle. Mic auto-runs only in Guitar mode." },
   ];
   const closeTour = () => setTourStep(-1);
 
