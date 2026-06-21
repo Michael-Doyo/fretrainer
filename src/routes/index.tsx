@@ -447,11 +447,14 @@ function Index() {
     <Fretboard
       target={target}
       showAll={showAll}
-      hideTargetName={mode === "find-note" || mode === "guitar" || mode === "name-note"}
+      showTarget={mode === "name-note" || (mode === "guitar" && guitarSub === "learn") || mode === "all-strings"}
+      hideTargetName={true}
       highlightNote={mode === "scale" || mode === "play-along" ? target.note : null}
+      blinkString={mode === "play-along" ? blinkString : null}
       feedback={feedback}
       allowedStrings={allowedStrings}
       stringsHit={mode === "all-strings" ? stringsHit : null}
+      onCellTap={mode === "find-note" ? handleFretTap : undefined}
       tourId="tour-fretboard"
     />
   );
@@ -468,7 +471,7 @@ function Index() {
       <div className="text-5xl sm:text-6xl font-black font-mono leading-none" style={{ color: NOTE_COLORS[target.note] }}>
         {target.note}
       </div>
-      {mode !== "play-along" && mode !== "scale" && (
+      {mode !== "play-along" && mode !== "scale" && (mode !== "name-note" || revealStringName) && (
         <div className="text-xs sm:text-sm text-zinc-400 font-mono mt-1">
           string {target.stringIdx + 1}
         </div>
@@ -476,7 +479,7 @@ function Index() {
     </div>
   );
 
-  const choicesRow = (mode === "find-note" || mode === "name-note" || mode === "guitar") && (
+  const choicesRow = (mode === "name-note") && (
     <div data-tour="tour-choices" className="grid grid-cols-4 gap-2">
       {(mounted ? choices : ["", "", "", ""]).map((n, i) => (
         <button
