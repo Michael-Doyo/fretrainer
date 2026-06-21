@@ -509,9 +509,9 @@ function Index() {
         const st = noteAcc[n];
         const pct = st && st.attempts ? Math.round((st.correct / st.attempts) * 100) : null;
         return (
-          <div key={n} className="rounded-md bg-zinc-900/70 border border-zinc-800 py-1 text-center">
-            <div className="text-sm font-extrabold font-mono" style={{ color: NOTE_COLORS[n] }}>{n}</div>
-            <div className="text-[9px] font-mono text-zinc-400 leading-none">{pct === null ? "—" : `${pct}%`}</div>
+          <div key={n} className="rounded-md bg-zinc-900/70 border border-zinc-800 py-1.5 text-center">
+            <div className="text-base sm:text-lg font-extrabold font-mono leading-none" style={{ color: NOTE_COLORS[n] }}>{n}</div>
+            <div className="text-sm sm:text-base font-mono font-bold text-zinc-200 leading-tight mt-0.5">{pct === null ? "—" : `${pct}%`}</div>
           </div>
         );
       })}
