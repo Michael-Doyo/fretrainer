@@ -782,15 +782,18 @@ function Tuner({
 }
 
 function Fretboard({
-  target, showAll, hideTargetName, highlightNote, feedback, allowedStrings, stringsHit, tourId,
+  target, showAll, showTarget, hideTargetName, highlightNote, blinkString, feedback, allowedStrings, stringsHit, onCellTap, tourId,
 }: {
   target: Target;
   showAll: boolean;
+  showTarget: boolean;
   hideTargetName: boolean;
   highlightNote: string | null;
+  blinkString: number | null;
   feedback: Feedback;
   allowedStrings: number[];
   stringsHit: Set<number> | null;
+  onCellTap?: (s: number, f: number) => void;
   tourId?: string;
 }) {
   const inlayFrets = [3, 5, 7, 9, 12];
@@ -838,7 +841,7 @@ function Fretboard({
           const muted = !allowedStrings.includes(sIdx);
           const hit = stringsHit && stringsHit.has(sIdx);
           const thickness = Math.max(1, (sIdx + 1) * 0.7);
-          // Find this string's note positions matching highlightNote
+          const isBlink = blinkString === sIdx;
           return (
             <div key={sIdx}
               className={`flex items-center h-7 sm:h-9 transition-opacity relative ${muted ? "opacity-25" : "opacity-100"}`}>
@@ -853,7 +856,8 @@ function Fretboard({
                   const color = NOTE_COLORS[note];
                   return (
                     <div key={f} style={{ flex: fretFlex(f) }}
-                      className="relative h-7 sm:h-9 flex items-center justify-center">
+                      onClick={onCellTap && !muted ? () => onCellTap(sIdx, f) : undefined}
+                      className={`relative h-7 sm:h-9 flex items-center justify-center ${onCellTap && !muted ? "cursor-pointer active:bg-amber-400/10" : ""}`}>
                       {/* Nut: fret 0 IS the nut — render thick white bar across the fret-0 cell */}
                       {f === 0 && (
                         <div className="absolute inset-y-0 right-0 w-1.5 bg-zinc-100 rounded-sm shadow-[0_0_4px_rgba(255,255,255,0.4)]" />
@@ -862,7 +866,7 @@ function Fretboard({
                         <div className="absolute right-0 top-0 bottom-0 w-[2px] bg-gradient-to-b from-zinc-300 via-zinc-500 to-zinc-300" />
                       )}
 
-                      {isTarget && (
+                      {isTarget && showTarget && (
                         <div className={`relative z-20 w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center text-[10px] font-extrabold ring-2 ${
                           feedback === "correct" ? "bg-emerald-400 text-zinc-900 ring-emerald-200"
                           : feedback === "wrong" ? "bg-rose-500 text-white ring-rose-200"
@@ -872,7 +876,7 @@ function Fretboard({
                         </div>
                       )}
                       {!isTarget && noteMatch && (
-                        <div className="relative z-20 w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center text-[10px] font-extrabold bg-amber-400 text-zinc-900 ring-2 ring-amber-200">
+                        <div className={`relative z-20 w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center text-[10px] font-extrabold text-zinc-900 ring-2 ${isBlink ? "bg-emerald-300 ring-emerald-100 animate-pulse" : "bg-amber-400/60 ring-amber-200/40"}`}>
                           {note}
                         </div>
                       )}
