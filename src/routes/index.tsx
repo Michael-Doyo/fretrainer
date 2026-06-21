@@ -390,6 +390,12 @@ function Index() {
     return { string: best, idx: bestIdx, cents: (detectedMidi - best.openMidi) * 100 };
   }, [detectedMidi]);
 
+  // Smooth tuner needle (slower fluctuation) via EMA
+  useEffect(() => {
+    if (!tunerInfo) { setSmoothCents(null); return; }
+    setSmoothCents((prev) => prev == null ? tunerInfo.cents : prev * 0.82 + tunerInfo.cents * 0.18);
+  }, [tunerInfo]);
+
   /* ── Fullscreen ── */
   const toggleFs = async () => {
     try {
