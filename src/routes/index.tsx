@@ -244,6 +244,7 @@ function Index() {
     }
     setStringsHit(new Set());
     setFeedback("idle");
+    setRevealStringName(false);
   }, [allowedStrings, allowedNotes, mode]);
 
   const recordAttempt = (s: number, f: number, ok: boolean) => {
@@ -266,6 +267,7 @@ function Index() {
     setScore((s) => s + 1);
     setStreak((s) => { const n = s + 1; setBestStreak((b) => Math.max(b, n)); return n; });
     setFeedback("correct");
+    setRevealStringName(true);
     playTone("correct", soundOn);
     setTimeout(nextTarget, 650);
   };
