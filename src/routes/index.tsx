@@ -347,7 +347,7 @@ function Index() {
   /* ── Mic-driven answering ── */
   useEffect(() => {
     if (!detectedMidi || feedback !== "idle") return;
-    if (mode !== "find-note" && mode !== "guitar" && mode !== "all-strings") return;
+    if (mode !== "guitar" && mode !== "all-strings") return;
     if (mode === "all-strings") {
       for (const s of allowedStrings) {
         if (stringsHit.has(s)) continue;
