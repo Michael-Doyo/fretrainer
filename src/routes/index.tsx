@@ -998,7 +998,16 @@ function TourOverlay({
       ) : (
         <div className="absolute inset-0 bg-black/75 pointer-events-auto" onClick={onClose} />
       )}
-      <div className="absolute left-1/2 -translate-x-1/2 bottom-4 max-w-md w-[92%] bg-zinc-900 border border-amber-400/50 rounded-2xl p-4 pointer-events-auto shadow-2xl">
+      <div
+        className="absolute left-1/2 -translate-x-1/2 max-w-md w-[92%] bg-zinc-900 border border-amber-400/50 rounded-2xl p-4 pointer-events-auto shadow-2xl"
+        style={
+          hole
+            ? hole.top + hole.height / 2 < window.innerHeight / 2
+              ? { top: Math.min(window.innerHeight - 140, hole.top + hole.height + 12) }
+              : { top: Math.max(12, hole.top - 140) }
+            : { bottom: 16 }
+        }
+      >
         <div className="text-[10px] uppercase tracking-wider text-amber-400 mb-1">Tour · {index + 1}/{total}</div>
         <div className="text-sm text-zinc-100 mb-3">{step.text}</div>
         <div className="flex justify-between">
