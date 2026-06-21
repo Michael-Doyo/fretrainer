@@ -209,15 +209,26 @@ function Index() {
 
   useEffect(() => () => stopMic(), []);
 
-  // Play-along auto-cycle
+  // Play-along auto-cycle: blink string from low E (sIdx 5) up to high E (sIdx 0),
+  // tick each step, advance note when reaching the top.
   useEffect(() => {
-    if (mode !== "play-along") return;
+    if (mode !== "play-along" || !playingAlong) { setBlinkString(null); return; }
+    setBlinkString(5);
+    setTarget((t) => ({ ...t, note: t.note || randomNote(allowedNotes) }));
+    let s = 5;
     const id = setInterval(() => {
-      const n = randomNote(allowedNotes);
-      setTarget({ stringIdx: 0, fret: 0, note: n, midi: midiAt(0, 0) });
-    }, Math.max(400, speed * 1000));
+      playTone("tick", soundOn);
+      s -= 1;
+      if (s < 0) {
+        const n = randomNote(allowedNotes);
+        setTarget({ stringIdx: 0, fret: 0, note: n, midi: midiAt(0, 0) });
+        s = 5;
+      }
+      setBlinkString(s);
+    }, SPEED_MS[speedLevel - 1]);
     return () => clearInterval(id);
-  }, [mode, speed, allowedNotes]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, playingAlong, speedLevel, allowedNotes, soundOn]);
 
   /* ── Flow ── */
   const cellKey = (s: number, f: number) => `${s}:${f}`;
