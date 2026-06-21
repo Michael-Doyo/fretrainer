@@ -43,6 +43,9 @@ type Mode = "find-note" | "name-note" | "guitar" | "all-strings" | "scale" | "pl
 type Feedback = "idle" | "correct" | "wrong";
 type Target = { stringIdx: number; fret: number; note: string; midi: number };
 
+// Play-along speed levels: ms per blink step (one per string)
+const SPEED_MS = [5000, 4000, 3000, 2000, 1000, 500, 333]; // index 0..6 (Level 1..7)
+
 function randomTarget(strings: number[], notes: string[]): Target {
   const S = strings.length ? strings : [0, 1, 2, 3, 4, 5];
   const N = notes.length ? notes : NOTE_NAMES;
@@ -174,7 +177,12 @@ function Index() {
   const [isFs, setIsFs] = useState(false);
 
   const [stringsHit, setStringsHit] = useState<Set<number>>(new Set());
-  const [speed, setSpeed] = useState(2); // seconds between play-along notes
+  const [speedLevel, setSpeedLevel] = useState(3); // 1..7
+  const [playingAlong, setPlayingAlong] = useState(false);
+  const [blinkString, setBlinkString] = useState<number | null>(null);
+  const [guitarSub, setGuitarSub] = useState<"learn" | "quiz">("learn");
+  const [revealStringName, setRevealStringName] = useState(false);
+  const [smoothCents, setSmoothCents] = useState<number | null>(null);
 
   const [tourStep, setTourStep] = useState(-1);
 
@@ -195,21 +203,33 @@ function Index() {
   }, []);
 
   useEffect(() => {
-    if ((mode === "guitar" || mode === "find-note" || mode === "all-strings") && !micOn) startMic();
+    if (mode === "guitar" && !micOn) startMic();
+    if (mode !== "guitar" && mode !== "all-strings" && micOn && !tunerOpen) stopMic();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
 
   useEffect(() => () => stopMic(), []);
 
-  // Play-along auto-cycle
+  // Play-along auto-cycle: blink string from low E (sIdx 5) up to high E (sIdx 0),
+  // tick each step, advance note when reaching the top.
   useEffect(() => {
-    if (mode !== "play-along") return;
+    if (mode !== "play-along" || !playingAlong) { setBlinkString(null); return; }
+    setBlinkString(5);
+    setTarget((t) => ({ ...t, note: t.note || randomNote(allowedNotes) }));
+    let s = 5;
     const id = setInterval(() => {
-      const n = randomNote(allowedNotes);
-      setTarget({ stringIdx: 0, fret: 0, note: n, midi: midiAt(0, 0) });
-    }, Math.max(400, speed * 1000));
+      playTone("tick", soundOn);
+      s -= 1;
+      if (s < 0) {
+        const n = randomNote(allowedNotes);
+        setTarget({ stringIdx: 0, fret: 0, note: n, midi: midiAt(0, 0) });
+        s = 5;
+      }
+      setBlinkString(s);
+    }, SPEED_MS[speedLevel - 1]);
     return () => clearInterval(id);
-  }, [mode, speed, allowedNotes]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, playingAlong, speedLevel, allowedNotes, soundOn]);
 
   /* ── Flow ── */
   const cellKey = (s: number, f: number) => `${s}:${f}`;
@@ -224,6 +244,7 @@ function Index() {
     }
     setStringsHit(new Set());
     setFeedback("idle");
+    setRevealStringName(false);
   }, [allowedStrings, allowedNotes, mode]);
 
   const recordAttempt = (s: number, f: number, ok: boolean) => {
@@ -246,6 +267,7 @@ function Index() {
     setScore((s) => s + 1);
     setStreak((s) => { const n = s + 1; setBestStreak((b) => Math.max(b, n)); return n; });
     setFeedback("correct");
+    setRevealStringName(true);
     playTone("correct", soundOn);
     setTimeout(nextTarget, 650);
   };
@@ -257,6 +279,13 @@ function Index() {
     setFeedback("wrong");
     playTone("wrong", soundOn);
     setTimeout(() => setFeedback("idle"), 450);
+  };
+
+  const handleFretTap = (s: number, f: number) => {
+    if (mode !== "find-note") return;
+    if (feedback !== "idle") return;
+    if (s === target.stringIdx && f === target.fret) handleCorrect();
+    else { recordAttempt(s, f, false); setStreak(0); setFeedback("wrong"); playTone("wrong", soundOn); setTimeout(() => setFeedback("idle"), 450); }
   };
 
   /* ── Aggregates ── */
@@ -327,7 +356,7 @@ function Index() {
   /* ── Mic-driven answering ── */
   useEffect(() => {
     if (!detectedMidi || feedback !== "idle") return;
-    if (mode !== "find-note" && mode !== "guitar" && mode !== "all-strings") return;
+    if (mode !== "guitar" && mode !== "all-strings") return;
     if (mode === "all-strings") {
       for (const s of allowedStrings) {
         if (stringsHit.has(s)) continue;
@@ -370,6 +399,12 @@ function Index() {
     return { string: best, idx: bestIdx, cents: (detectedMidi - best.openMidi) * 100 };
   }, [detectedMidi]);
 
+  // Smooth tuner needle (slower fluctuation) via EMA
+  useEffect(() => {
+    if (!tunerInfo) { setSmoothCents(null); return; }
+    setSmoothCents((prev) => prev == null ? tunerInfo.cents : prev * 0.82 + tunerInfo.cents * 0.18);
+  }, [tunerInfo]);
+
   /* ── Fullscreen ── */
   const toggleFs = async () => {
     try {
@@ -393,17 +428,26 @@ function Index() {
 
   /* ── Tour ── */
   const TOUR: { sel: string; text: string }[] = [
-    { sel: "tour-modes", text: "Choose a practice mode here." },
-    { sel: "tour-tuner", text: "Tuner button — tune your guitar before playing." },
-    { sel: "tour-showall", text: "Toggle showing every note on the fretboard." },
-    { sel: "tour-tolerance", text: "Pitch tolerance — how close your mic pitch must match (in cents)." },
-    { sel: "tour-strings", text: "Pick which strings to practice." },
-    { sel: "tour-notes", text: "Pick which notes to focus on." },
-    { sel: "tour-challenge", text: "The current challenge — note name (large) and string number (small)." },
-    { sel: "tour-fretboard", text: "The fretboard. Fret 0 is the nut; markers sit between G and D." },
-    { sel: "tour-choices", text: "Tap the correct note name to answer." },
+    { sel: "tour-header", text: "Top bar: score, streak and accuracy of your session." },
+    { sel: "tour-sound", text: "Sound toggle for ticks and answer feedback." },
+    { sel: "tour-fs", text: "Fullscreen — landscape view with only fretboard + challenge." },
+    { sel: "tour-tourbtn", text: "Open this guided tour anytime." },
+    { sel: "tour-tuner", text: "Tuner — opens the analog tuner. Mic only enables in Guitar mode." },
+    { sel: "tour-mode-find-note", text: "Find It mode: a note is given — tap its position on the fretboard." },
+    { sel: "tour-mode-name-note", text: "Name It mode: a fret is shown — pick its note name from four choices." },
+    { sel: "tour-mode-guitar", text: "Guitar mode: use your guitar (mic) to answer. Has Learn/Quiz sub-modes." },
+    { sel: "tour-mode-all-strings", text: "All Strings mode: play the given note on every selected string." },
+    { sel: "tour-mode-play-along", text: "Play-Along mode: notes blink across strings, low E → high E, with a metronome tick." },
+    { sel: "tour-mode-scale", text: "Free Play: explore the board with no quiz." },
+    { sel: "tour-showall", text: "Show / hide every note across the fretboard." },
+    { sel: "tour-tolerance", text: "Pitch tolerance (cents) — how close your mic pitch must match." },
+    { sel: "tour-speed", text: "Speed levels 1–7 for Play-Along: 1=one note / 5s … 7=three notes / sec." },
+    { sel: "tour-strings", text: "Toggle which strings to practice. Disabled strings fade on the board." },
+    { sel: "tour-notes", text: "Toggle which notes to focus on this session." },
+    { sel: "tour-challenge", text: "Challenge box: the current note. In Name It, the string is revealed only after a correct answer." },
+    { sel: "tour-fretboard", text: "Fretboard. Fret 0 is the nut; gold markers sit between G and D." },
     { sel: "tour-noterow", text: "Per-note accuracy across your session." },
-    { sel: "tour-header", text: "Score, accuracy, sound, fullscreen and Tour live up here." },
+    { sel: "tour-mic", text: "Mic status and toggle. Mic auto-runs only in Guitar mode." },
   ];
   const closeTour = () => setTourStep(-1);
 
@@ -412,11 +456,14 @@ function Index() {
     <Fretboard
       target={target}
       showAll={showAll}
-      hideTargetName={mode === "find-note" || mode === "guitar" || mode === "name-note"}
+      showTarget={mode === "name-note" || (mode === "guitar" && guitarSub === "learn") || mode === "all-strings"}
+      hideTargetName={true}
       highlightNote={mode === "scale" || mode === "play-along" ? target.note : null}
+      blinkString={mode === "play-along" ? blinkString : null}
       feedback={feedback}
       allowedStrings={allowedStrings}
       stringsHit={mode === "all-strings" ? stringsHit : null}
+      onCellTap={mode === "find-note" ? handleFretTap : undefined}
       tourId="tour-fretboard"
     />
   );
@@ -433,7 +480,7 @@ function Index() {
       <div className="text-5xl sm:text-6xl font-black font-mono leading-none" style={{ color: NOTE_COLORS[target.note] }}>
         {target.note}
       </div>
-      {mode !== "play-along" && mode !== "scale" && (
+      {mode !== "play-along" && mode !== "scale" && (mode !== "name-note" || revealStringName) && (
         <div className="text-xs sm:text-sm text-zinc-400 font-mono mt-1">
           string {target.stringIdx + 1}
         </div>
@@ -441,7 +488,7 @@ function Index() {
     </div>
   );
 
-  const choicesRow = (mode === "find-note" || mode === "name-note" || mode === "guitar") && (
+  const choicesRow = (mode === "name-note") && (
     <div data-tour="tour-choices" className="grid grid-cols-4 gap-2">
       {(mounted ? choices : ["", "", "", ""]).map((n, i) => (
         <button
@@ -462,9 +509,9 @@ function Index() {
         const st = noteAcc[n];
         const pct = st && st.attempts ? Math.round((st.correct / st.attempts) * 100) : null;
         return (
-          <div key={n} className="rounded-md bg-zinc-900/70 border border-zinc-800 py-1 text-center">
-            <div className="text-sm font-extrabold font-mono" style={{ color: NOTE_COLORS[n] }}>{n}</div>
-            <div className="text-[9px] font-mono text-zinc-400 leading-none">{pct === null ? "—" : `${pct}%`}</div>
+          <div key={n} className="rounded-md bg-zinc-900/70 border border-zinc-800 py-1.5 text-center">
+            <div className="text-base sm:text-lg font-extrabold font-mono leading-none" style={{ color: NOTE_COLORS[n] }}>{n}</div>
+            <div className="text-sm sm:text-base font-mono font-bold text-zinc-200 leading-tight mt-0.5">{pct === null ? "—" : `${pct}%`}</div>
           </div>
         );
       })}
@@ -500,9 +547,9 @@ function Index() {
             <Stat label="Score" value={score} />
             <Stat label="Streak" value={streak} />
             <Stat label="Acc" value={`${accuracy}%`} />
-            <IconBtn onClick={() => setSoundOn((s) => !s)} title="Sound">{soundOn ? "🔊" : "🔇"}</IconBtn>
-            <IconBtn onClick={toggleFs} title="Fullscreen">⛶</IconBtn>
-            <IconBtn onClick={() => setTourStep(0)} title="Tour">?</IconBtn>
+            <span data-tour="tour-sound"><IconBtn onClick={() => setSoundOn((s) => !s)} title="Sound">{soundOn ? "🔊" : "🔇"}</IconBtn></span>
+            <span data-tour="tour-fs"><IconBtn onClick={toggleFs} title="Fullscreen">⛶</IconBtn></span>
+            <span data-tour="tour-tourbtn"><IconBtn onClick={() => setTourStep(0)} title="Tour">?</IconBtn></span>
           </div>
         </header>
 
@@ -510,15 +557,15 @@ function Index() {
         <div data-tour="tour-modes" className="flex flex-wrap items-center gap-1.5">
           <button
             data-tour="tour-tuner"
-            onClick={() => { setTunerOpen(true); if (!micOn) startMic(); }}
+            onClick={() => { setTunerOpen(true); if (mode === "guitar" && !micOn) startMic(); }}
             className="px-2.5 py-1.5 rounded-full text-xs sm:text-sm font-semibold bg-emerald-500 text-zinc-900 hover:bg-emerald-400"
           >
             🎚 Tuner
           </button>
           {(
             [
-              ["find-note", "Find"],
-              ["name-note", "Name"],
+              ["find-note", "Find It"],
+              ["name-note", "Name It"],
               ["guitar", "Guitar 🎸"],
               ["all-strings", "All Strings"],
               ["play-along", "Play-Along"],
@@ -527,6 +574,7 @@ function Index() {
           ).map(([m, label]) => (
             <button
               key={m}
+              data-tour={`tour-mode-${m}`}
               onClick={() => { setMode(m); setTimeout(nextTarget, 0); }}
               className={`px-2.5 py-1.5 rounded-full text-xs sm:text-sm font-semibold transition ${
                 mode === m ? "bg-amber-400 text-zinc-900" : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
@@ -544,6 +592,30 @@ function Index() {
           </button>
         </div>
 
+        {/* Guitar sub-mode + Play-Along controls */}
+        {mode === "guitar" && (
+          <div data-tour="tour-guitar-sub" className="flex items-center gap-1.5 text-xs">
+            <span className="text-zinc-500 uppercase tracking-wider text-[10px]">Guitar:</span>
+            {(["learn","quiz"] as const).map((g) => (
+              <button key={g} onClick={() => setGuitarSub(g)}
+                className={`px-3 py-1 rounded-full font-semibold ${guitarSub === g ? "bg-amber-400 text-zinc-900" : "bg-zinc-800 text-zinc-300"}`}>
+                {g === "learn" ? "Learn" : "Quiz"}
+              </button>
+            ))}
+          </div>
+        )}
+        {mode === "play-along" && (
+          <div data-tour="tour-playalong" className="flex items-center gap-2">
+            <button onClick={() => setPlayingAlong((p) => !p)}
+              className={`px-3 py-1.5 rounded-full text-sm font-bold ${playingAlong ? "bg-rose-500 text-white" : "bg-emerald-400 text-zinc-900"}`}>
+              {playingAlong ? "■ Stop" : "▶ Start"}
+            </button>
+            <div className="text-[10px] text-zinc-400 font-mono">
+              {playingAlong ? `Blink: ${blinkString !== null ? STRINGS[blinkString].name + (blinkString === 5 ? " (low)" : blinkString === 0 ? " (high)" : "") : "—"}` : "Press start"}
+            </div>
+          </div>
+        )}
+
         {/* TOLERANCE + SPEED */}
         <div className="grid grid-cols-2 gap-2">
           <div data-tour="tour-tolerance" className="rounded-lg border border-zinc-800 bg-zinc-900/60 px-2 py-1.5">
@@ -555,14 +627,21 @@ function Index() {
               onChange={(e) => setTolerance(Number(e.target.value))}
               className="w-full accent-amber-400" />
           </div>
-          <div className={`rounded-lg border bg-zinc-900/60 px-2 py-1.5 ${mode === "play-along" ? "border-amber-500/50" : "border-zinc-800"}`}>
+          <div data-tour="tour-speed" className={`rounded-lg border bg-zinc-900/60 px-2 py-1.5 ${mode === "play-along" ? "border-amber-500/50" : "border-zinc-800"}`}>
             <div className="flex items-center justify-between text-[10px]">
-              <span className="uppercase tracking-wider text-zinc-500">Speed (play-along)</span>
-              <span className="font-mono text-amber-400">{speed.toFixed(1)}s</span>
+              <span className="uppercase tracking-wider text-zinc-500">Speed L{speedLevel}</span>
+              <span className="font-mono text-amber-400">
+                {speedLevel <= 5 ? `1 / ${[5,4,3,2,1][speedLevel - 1]}s` : `${speedLevel - 4}/s`}
+              </span>
             </div>
-            <input type="range" min={0.5} max={6} step={0.1} value={speed}
-              onChange={(e) => setSpeed(Number(e.target.value))}
-              className="w-full accent-amber-400" />
+            <div className="grid grid-cols-7 gap-0.5 mt-0.5">
+              {[1,2,3,4,5,6,7].map((lv) => (
+                <button key={lv} onClick={() => setSpeedLevel(lv)}
+                  className={`py-1 rounded text-[10px] font-bold ${speedLevel === lv ? "bg-amber-400 text-zinc-900" : "bg-zinc-800 text-zinc-400"}`}>
+                  {lv}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -615,7 +694,7 @@ function Index() {
         {noteAccRow}
 
         {/* MIC + COVERAGE INLINE */}
-        <div className="flex items-center justify-between gap-2 text-[11px] text-zinc-400">
+        <div data-tour="tour-mic" className="flex items-center justify-between gap-2 text-[11px] text-zinc-400">
           <div className="font-mono">
             🎤 {detectedMidi !== null
               ? `${midiToName(Math.round(detectedMidi))}${midiToOctave(Math.round(detectedMidi))} · ${detectedFreq?.toFixed(0)}Hz`
@@ -637,7 +716,7 @@ function Index() {
               <div className="text-sm uppercase tracking-wider text-amber-400 font-bold">Tuner</div>
               <button onClick={() => setTunerOpen(false)} className="text-xs px-2 py-1 rounded bg-zinc-800">Close</button>
             </div>
-            <Tuner info={tunerInfo} freq={detectedFreq} />
+            <Tuner info={tunerInfo} freq={detectedFreq} smoothCents={smoothCents} micOn={micOn} onEnableMic={startMic} />
           </div>
         </div>
       )}
@@ -677,18 +756,26 @@ function IconBtn({ children, onClick, title }: { children: React.ReactNode; onCl
 }
 
 function Tuner({
-  info, freq,
+  info, freq, smoothCents, micOn, onEnableMic,
 }: {
   info: { string: { name: string; openMidi: number }; idx: number; cents: number } | null;
   freq: number | null;
+  smoothCents: number | null;
+  micOn: boolean;
+  onEnableMic: () => void;
 }) {
+  // Traditional analog dial: needle rotates from -45° (–50¢) to +45° (+50¢).
+  const cents = smoothCents ?? 0;
+  const clamped = Math.max(-50, Math.min(50, cents));
+  const angle = (clamped / 50) * 45;
+  const inTune = info && Math.abs(cents) < 5;
   return (
     <div>
-      <div className="flex gap-1 mb-2">
+      <div className="flex gap-1 mb-3">
         {STRINGS.map((s, i) => (
           <div key={i}
             className={`flex-1 text-center py-1.5 rounded text-sm font-bold ${
-              info && info.idx === i && Math.abs(info.cents) < 10 ? "bg-emerald-400 text-zinc-900"
+              info && info.idx === i && Math.abs(cents) < 5 ? "bg-emerald-400 text-zinc-900"
               : info && info.idx === i ? "bg-amber-400 text-zinc-900"
               : "bg-zinc-800 text-zinc-400"
             }`}>
@@ -696,31 +783,63 @@ function Tuner({
           </div>
         ))}
       </div>
-      <div className="relative h-2 bg-zinc-800 rounded-full overflow-hidden">
-        <div className="absolute inset-y-0 left-1/2 w-px bg-zinc-500" />
-        {info && (
-          <div className={`absolute top-0 bottom-0 ${Math.abs(info.cents) < 10 ? "bg-emerald-400" : "bg-amber-400"}`}
-            style={{ left: "50%", width: `${Math.min(Math.abs(info.cents), 50)}%`,
-              transform: info.cents < 0 ? "translateX(-100%)" : "none" }} />
-        )}
+      {/* Analog dial */}
+      <div className="relative mx-auto" style={{ width: 240, height: 130 }}>
+        <div className="absolute inset-0 rounded-t-full bg-gradient-to-b from-zinc-100 to-zinc-300 border-2 border-zinc-700 overflow-hidden">
+          {/* tick marks */}
+          {Array.from({ length: 11 }).map((_, i) => {
+            const a = -45 + i * 9;
+            const isCenter = i === 5;
+            return (
+              <div key={i} className="absolute left-1/2 bottom-0 origin-bottom"
+                style={{ transform: `translateX(-50%) rotate(${a}deg)`, width: 2, height: isCenter ? 60 : 44 }}>
+                <div className={`w-full h-full ${isCenter ? "bg-emerald-600" : "bg-zinc-700"}`} />
+              </div>
+            );
+          })}
+          {/* labels */}
+          <div className="absolute left-2 bottom-1 text-[10px] font-mono text-zinc-700">-50</div>
+          <div className="absolute left-1/2 -translate-x-1/2 top-1 text-[10px] font-mono text-emerald-700 font-bold">0</div>
+          <div className="absolute right-2 bottom-1 text-[10px] font-mono text-zinc-700">+50</div>
+          {/* needle (smooth transition for slow fluctuation) */}
+          <div className="absolute left-1/2 bottom-0 origin-bottom"
+            style={{
+              transform: `translateX(-50%) rotate(${angle}deg)`,
+              width: 3, height: 110,
+              transition: "transform 280ms cubic-bezier(.22,.61,.36,1)",
+            }}>
+            <div className={`w-full h-full rounded-full ${inTune ? "bg-emerald-500" : "bg-rose-500"}`} />
+          </div>
+          <div className="absolute left-1/2 bottom-0 -translate-x-1/2 w-4 h-4 rounded-full bg-zinc-800 border-2 border-zinc-100" />
+        </div>
       </div>
-      <div className="mt-1 text-[11px] text-zinc-400 font-mono">
-        {info ? `${info.string.name}  ${info.cents > 0 ? "+" : ""}${info.cents.toFixed(0)}¢  · ${freq?.toFixed(1)} Hz` : "Play an open string…"}
+      <div className="mt-2 text-center text-sm font-mono">
+        {info ? (
+          <span className={inTune ? "text-emerald-400 font-bold" : "text-amber-400"}>
+            {info.string.name}  {cents > 0 ? "+" : ""}{cents.toFixed(0)}¢ · {freq?.toFixed(1)} Hz
+          </span>
+        ) : micOn ? <span className="text-zinc-500">Play an open string…</span>
+        : (
+          <button onClick={onEnableMic} className="px-3 py-1.5 rounded bg-amber-400 text-zinc-900 font-bold text-xs">Enable mic</button>
+        )}
       </div>
     </div>
   );
 }
 
 function Fretboard({
-  target, showAll, hideTargetName, highlightNote, feedback, allowedStrings, stringsHit, tourId,
+  target, showAll, showTarget, hideTargetName, highlightNote, blinkString, feedback, allowedStrings, stringsHit, onCellTap, tourId,
 }: {
   target: Target;
   showAll: boolean;
+  showTarget: boolean;
   hideTargetName: boolean;
   highlightNote: string | null;
+  blinkString: number | null;
   feedback: Feedback;
   allowedStrings: number[];
   stringsHit: Set<number> | null;
+  onCellTap?: (s: number, f: number) => void;
   tourId?: string;
 }) {
   const inlayFrets = [3, 5, 7, 9, 12];
@@ -768,7 +887,7 @@ function Fretboard({
           const muted = !allowedStrings.includes(sIdx);
           const hit = stringsHit && stringsHit.has(sIdx);
           const thickness = Math.max(1, (sIdx + 1) * 0.7);
-          // Find this string's note positions matching highlightNote
+          const isBlink = blinkString === sIdx;
           return (
             <div key={sIdx}
               className={`flex items-center h-7 sm:h-9 transition-opacity relative ${muted ? "opacity-25" : "opacity-100"}`}>
@@ -783,7 +902,8 @@ function Fretboard({
                   const color = NOTE_COLORS[note];
                   return (
                     <div key={f} style={{ flex: fretFlex(f) }}
-                      className="relative h-7 sm:h-9 flex items-center justify-center">
+                      onClick={onCellTap && !muted ? () => onCellTap(sIdx, f) : undefined}
+                      className={`relative h-7 sm:h-9 flex items-center justify-center ${onCellTap && !muted ? "cursor-pointer active:bg-amber-400/10" : ""}`}>
                       {/* Nut: fret 0 IS the nut — render thick white bar across the fret-0 cell */}
                       {f === 0 && (
                         <div className="absolute inset-y-0 right-0 w-1.5 bg-zinc-100 rounded-sm shadow-[0_0_4px_rgba(255,255,255,0.4)]" />
@@ -792,7 +912,7 @@ function Fretboard({
                         <div className="absolute right-0 top-0 bottom-0 w-[2px] bg-gradient-to-b from-zinc-300 via-zinc-500 to-zinc-300" />
                       )}
 
-                      {isTarget && (
+                      {isTarget && showTarget && (
                         <div className={`relative z-20 w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center text-[10px] font-extrabold ring-2 ${
                           feedback === "correct" ? "bg-emerald-400 text-zinc-900 ring-emerald-200"
                           : feedback === "wrong" ? "bg-rose-500 text-white ring-rose-200"
@@ -802,7 +922,7 @@ function Fretboard({
                         </div>
                       )}
                       {!isTarget && noteMatch && (
-                        <div className="relative z-20 w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center text-[10px] font-extrabold bg-amber-400 text-zinc-900 ring-2 ring-amber-200">
+                        <div className={`relative z-20 w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center text-[10px] font-extrabold text-zinc-900 ring-2 ${isBlink ? "bg-emerald-300 ring-emerald-100 animate-pulse" : "bg-amber-400/60 ring-amber-200/40"}`}>
                           {note}
                         </div>
                       )}
@@ -878,7 +998,16 @@ function TourOverlay({
       ) : (
         <div className="absolute inset-0 bg-black/75 pointer-events-auto" onClick={onClose} />
       )}
-      <div className="absolute left-1/2 -translate-x-1/2 bottom-4 max-w-md w-[92%] bg-zinc-900 border border-amber-400/50 rounded-2xl p-4 pointer-events-auto shadow-2xl">
+      <div
+        className="absolute left-1/2 -translate-x-1/2 max-w-md w-[92%] bg-zinc-900 border border-amber-400/50 rounded-2xl p-4 pointer-events-auto shadow-2xl"
+        style={
+          hole
+            ? hole.top + hole.height / 2 < window.innerHeight / 2
+              ? { top: Math.min(window.innerHeight - 140, hole.top + hole.height + 12) }
+              : { top: Math.max(12, hole.top - 140) }
+            : { bottom: 16 }
+        }
+      >
         <div className="text-[10px] uppercase tracking-wider text-amber-400 mb-1">Tour · {index + 1}/{total}</div>
         <div className="text-sm text-zinc-100 mb-3">{step.text}</div>
         <div className="flex justify-between">
