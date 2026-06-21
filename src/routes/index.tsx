@@ -177,7 +177,12 @@ function Index() {
   const [isFs, setIsFs] = useState(false);
 
   const [stringsHit, setStringsHit] = useState<Set<number>>(new Set());
-  const [speed, setSpeed] = useState(2); // seconds between play-along notes
+  const [speedLevel, setSpeedLevel] = useState(3); // 1..7
+  const [playingAlong, setPlayingAlong] = useState(false);
+  const [blinkString, setBlinkString] = useState<number | null>(null);
+  const [guitarSub, setGuitarSub] = useState<"learn" | "quiz">("learn");
+  const [revealStringName, setRevealStringName] = useState(false);
+  const [smoothCents, setSmoothCents] = useState<number | null>(null);
 
   const [tourStep, setTourStep] = useState(-1);
 
