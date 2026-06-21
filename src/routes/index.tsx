@@ -43,6 +43,9 @@ type Mode = "find-note" | "name-note" | "guitar" | "all-strings" | "scale" | "pl
 type Feedback = "idle" | "correct" | "wrong";
 type Target = { stringIdx: number; fret: number; note: string; midi: number };
 
+// Play-along speed levels: ms per blink step (one per string)
+const SPEED_MS = [5000, 4000, 3000, 2000, 1000, 500, 333]; // index 0..6 (Level 1..7)
+
 function randomTarget(strings: number[], notes: string[]): Target {
   const S = strings.length ? strings : [0, 1, 2, 3, 4, 5];
   const N = notes.length ? notes : NOTE_NAMES;
