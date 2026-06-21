@@ -203,7 +203,8 @@ function Index() {
   }, []);
 
   useEffect(() => {
-    if ((mode === "guitar" || mode === "find-note" || mode === "all-strings") && !micOn) startMic();
+    if (mode === "guitar" && !micOn) startMic();
+    if (mode !== "guitar" && mode !== "all-strings" && micOn && !tunerOpen) stopMic();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
 
