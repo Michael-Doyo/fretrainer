@@ -281,6 +281,13 @@ function Index() {
     setTimeout(() => setFeedback("idle"), 450);
   };
 
+  const handleFretTap = (s: number, f: number) => {
+    if (mode !== "find-note") return;
+    if (feedback !== "idle") return;
+    if (s === target.stringIdx && f === target.fret) handleCorrect();
+    else { recordAttempt(s, f, false); setStreak(0); setFeedback("wrong"); playTone("wrong", soundOn); setTimeout(() => setFeedback("idle"), 450); }
+  };
+
   /* ── Aggregates ── */
   const noteAcc = useMemo(() => {
     const out: Record<string, CellStat> = {};
