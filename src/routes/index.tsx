@@ -716,7 +716,7 @@ function Index() {
               <div className="text-sm uppercase tracking-wider text-amber-400 font-bold">Tuner</div>
               <button onClick={() => setTunerOpen(false)} className="text-xs px-2 py-1 rounded bg-zinc-800">Close</button>
             </div>
-            <Tuner info={tunerInfo} freq={detectedFreq} />
+            <Tuner info={tunerInfo} freq={detectedFreq} smoothCents={smoothCents} micOn={micOn} onEnableMic={startMic} />
           </div>
         </div>
       )}
