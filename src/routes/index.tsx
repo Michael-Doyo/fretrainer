@@ -39,6 +39,9 @@ const NOTE_COLORS: Record<string, string> = {
   "G#": "#3b82f6", A: "#8b5cf6", "A#": "#d946ef", B: "#ec4899",
 };
 
+// Natural notes for highlighting
+const NATURAL_NOTES = ["C", "D", "E", "F", "G", "A", "B"];
+
 type Mode = "find-note" | "name-note" | "guitar" | "all-strings" | "scale" | "play-along";
 type Feedback = "idle" | "correct" | "wrong";
 type Target = { stringIdx: number; fret: number; note: string; midi: number };
@@ -210,8 +213,7 @@ function Index() {
 
   useEffect(() => () => stopMic(), []);
 
-  // Play-along auto-cycle: blink string from low E (sIdx 5) up to high E (sIdx 0),
-  // tick each step, advance note when reaching the top.
+  // Play-along auto-cycle: notes cycle through strings sequentially, not simultaneously
   useEffect(() => {
     if (mode !== "play-along" || !playingAlong) { setBlinkString(null); return; }
     setBlinkString(5);
@@ -319,6 +321,11 @@ function Index() {
   }, [completed, allowedStrings, allowedNotes]);
 
   const accuracy = attempts ? Math.round((correctCount / attempts) * 100) : 0;
+
+  // Calculate all strings progress for "Find note on all strings" mode
+  const allStringsProgress = useMemo(() => {
+    return allowedStrings.length > 0 ? Math.round((stringsHit.size / allowedStrings.length) * 100) : 0;
+  }, [stringsHit, allowedStrings]);
 
   /* ── Mic ── */
   async function startMic() {
@@ -437,14 +444,14 @@ function Index() {
     { sel: "tour-mode-name-note", text: "Name It mode: a fret is shown — pick its note name from four choices." },
     { sel: "tour-mode-guitar", text: "Guitar mode: use your guitar (mic) to answer. Has Learn/Quiz sub-modes." },
     { sel: "tour-mode-all-strings", text: "All Strings mode: play the given note on every selected string." },
-    { sel: "tour-mode-play-along", text: "Play-Along mode: notes blink across strings, low E → high E, with a metronome tick." },
-    { sel: "tour-mode-scale", text: "Free Play: explore the board with no quiz." },
+    { sel: "tour-mode-play-along", text: "Play-Along mode: notes play sequentially across strings, low E → high E, with a metronome tick." },
+    { sel: "tour-mode-scale", text: "Free Play: explore the board with no quiz. All natural notes are highlighted." },
     { sel: "tour-showall", text: "Show / hide every note across the fretboard." },
     { sel: "tour-tolerance", text: "Pitch tolerance (cents) — how close your mic pitch must match." },
-    { sel: "tour-speed", text: "Speed levels 1–7 for Play-Along: 1=one note / 5s … 7=three notes / sec." },
+    { sel: "tour-playalong-speed", text: "Play-Along speed: levels 1–7 for how fast notes cycle (1=one note / 5s … 7=three notes / sec)." },
     { sel: "tour-strings", text: "Toggle which strings to practice. Disabled strings fade on the board." },
     { sel: "tour-notes", text: "Toggle which notes to focus on this session." },
-    { sel: "tour-challenge", text: "Challenge box: the current note. In Name It, the string is revealed only after a correct answer." },
+    { sel: "tour-challenge", text: "Challenge box: the current note. Progress bar shows completion in All Strings mode." },
     { sel: "tour-fretboard", text: "Fretboard. Fret 0 is the nut; gold markers sit between G and D." },
     { sel: "tour-noterow", text: "Per-note accuracy across your session." },
     { sel: "tour-mic", text: "Mic status and toggle. Mic auto-runs only in Guitar mode." },
@@ -457,8 +464,9 @@ function Index() {
       target={target}
       showAll={showAll}
       showTarget={mode === "name-note" || (mode === "guitar" && guitarSub === "learn") || mode === "all-strings"}
-      hideTargetName={true}
+      hideTargetName={mode === "find-note" || (mode === "guitar" && guitarSub === "quiz") || (mode === "scale")}
       highlightNote={mode === "scale" || mode === "play-along" ? target.note : null}
+      highlightNaturals={mode === "scale"}
       blinkString={mode === "play-along" ? blinkString : null}
       feedback={feedback}
       allowedStrings={allowedStrings}
@@ -478,17 +486,31 @@ function Index() {
       }`}
     >
       <div className="text-5xl sm:text-6xl font-black font-mono leading-none" style={{ color: NOTE_COLORS[target.note] }}>
-        {target.note}
+        {mode !== "name-note" || revealStringName ? target.note : "?"}
       </div>
       {mode !== "play-along" && mode !== "scale" && (mode !== "name-note" || revealStringName) && (
         <div className="text-xs sm:text-sm text-zinc-400 font-mono mt-1">
           string {target.stringIdx + 1}
         </div>
       )}
+      {mode === "all-strings" && (
+        <div className="mt-2 text-xs text-zinc-300">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-[10px] text-zinc-500">All strings progress:</span>
+            <div className="flex-1 h-2 bg-zinc-700 rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-amber-400 transition-all duration-300"
+                style={{ width: `${allStringsProgress}%` }}
+              />
+            </div>
+            <span className="text-[10px] font-mono">{allStringsProgress}%</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 
-  const choicesRow = (mode === "name-note") && (
+  const choicesRow = (mode === "name-note" || mode === "guitar") && (
     <div data-tour="tour-choices" className="grid grid-cols-4 gap-2">
       {(mounted ? choices : ["", "", "", ""]).map((n, i) => (
         <button
@@ -553,7 +575,7 @@ function Index() {
           </div>
         </header>
 
-        {/* MODE + TUNER + SHOW ALL */}
+        {/* MODE + TUNER + SHOW ALL / FIND NOTE ON ALL STRINGS */}
         <div data-tour="tour-modes" className="flex flex-wrap items-center gap-1.5">
           <button
             data-tour="tour-tuner"
@@ -567,7 +589,6 @@ function Index() {
               ["find-note", "Find It"],
               ["name-note", "Name It"],
               ["guitar", "Guitar 🎸"],
-              ["all-strings", "All Strings"],
               ["play-along", "Play-Along"],
               ["scale", "Free Play"],
             ] as [Mode, string][]
@@ -583,6 +604,15 @@ function Index() {
               {label}
             </button>
           ))}
+          {(mode === "find-note" || mode === "guitar") && (
+            <button
+              data-tour="tour-find-all-strings"
+              onClick={() => setMode("all-strings")}
+              className="px-2.5 py-1.5 rounded-full text-xs sm:text-sm font-semibold bg-purple-600 text-white hover:bg-purple-500"
+            >
+              Find note on all strings
+            </button>
+          )}
           <button
             data-tour="tour-showall"
             onClick={() => setShowAll((s) => !s)}
@@ -627,22 +657,24 @@ function Index() {
               onChange={(e) => setTolerance(Number(e.target.value))}
               className="w-full accent-amber-400" />
           </div>
-          <div data-tour="tour-speed" className={`rounded-lg border bg-zinc-900/60 px-2 py-1.5 ${mode === "play-along" ? "border-amber-500/50" : "border-zinc-800"}`}>
-            <div className="flex items-center justify-between text-[10px]">
-              <span className="uppercase tracking-wider text-zinc-500">Speed L{speedLevel}</span>
-              <span className="font-mono text-amber-400">
-                {speedLevel <= 5 ? `1 / ${[5,4,3,2,1][speedLevel - 1]}s` : `${speedLevel - 4}/s`}
-              </span>
+          {mode === "play-along" && (
+            <div data-tour="tour-playalong-speed" className="rounded-lg border border-amber-500/50 bg-zinc-900/60 px-2 py-1.5">
+              <div className="flex items-center justify-between text-[10px]">
+                <span className="uppercase tracking-wider text-zinc-500">Play-Along Speed L{speedLevel}</span>
+                <span className="font-mono text-amber-400">
+                  {speedLevel <= 5 ? `1 / ${[5,4,3,2,1][speedLevel - 1]}s` : `${speedLevel - 4}/s`}
+                </span>
+              </div>
+              <div className="grid grid-cols-7 gap-0.5 mt-0.5">
+                {[1,2,3,4,5,6,7].map((lv) => (
+                  <button key={lv} onClick={() => setSpeedLevel(lv)}
+                    className={`py-1 rounded text-[10px] font-bold ${speedLevel === lv ? "bg-amber-400 text-zinc-900" : "bg-zinc-800 text-zinc-400"}`}>
+                    {lv}
+                  </button>
+                ))}
+              </div>
             </div>
-            <div className="grid grid-cols-7 gap-0.5 mt-0.5">
-              {[1,2,3,4,5,6,7].map((lv) => (
-                <button key={lv} onClick={() => setSpeedLevel(lv)}
-                  className={`py-1 rounded text-[10px] font-bold ${speedLevel === lv ? "bg-amber-400 text-zinc-900" : "bg-zinc-800 text-zinc-400"}`}>
-                  {lv}
-                </button>
-              ))}
-            </div>
-          </div>
+          )}
         </div>
 
         {/* PRACTICE FILTERS (strings + notes selection — no per-cell %) */}
@@ -828,13 +860,14 @@ function Tuner({
 }
 
 function Fretboard({
-  target, showAll, showTarget, hideTargetName, highlightNote, blinkString, feedback, allowedStrings, stringsHit, onCellTap, tourId,
+  target, showAll, showTarget, hideTargetName, highlightNote, highlightNaturals, blinkString, feedback, allowedStrings, stringsHit, onCellTap, tourId,
 }: {
   target: Target;
   showAll: boolean;
   showTarget: boolean;
   hideTargetName: boolean;
   highlightNote: string | null;
+  highlightNaturals: boolean;
   blinkString: number | null;
   feedback: Feedback;
   allowedStrings: number[];
@@ -891,7 +924,7 @@ function Fretboard({
           return (
             <div key={sIdx}
               className={`flex items-center h-7 sm:h-9 transition-opacity relative ${muted ? "opacity-25" : "opacity-100"}`}>
-              <div className="w-6 sm:w-7 text-center text-sm sm:text-base font-extrabold text-amber-300 font-mono">{s.name}</div>
+              <div className="w-6 sm:w-7 text-center text-base sm:text-lg font-extrabold text-amber-300 font-mono">{s.name}</div>
               <div className="flex-1 flex relative">
                 <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 bg-zinc-400"
                   style={{ height: `${thickness}px` }} />
@@ -899,6 +932,8 @@ function Fretboard({
                   const isTarget = sIdx === target.stringIdx && f === target.fret;
                   const note = noteAt(sIdx, f);
                   const noteMatch = highlightNote && note === highlightNote;
+                  const isNatural = NATURAL_NOTES.includes(note);
+                  const shouldHighlightNatural = highlightNaturals && isNatural && (f === 0 || f === 12);
                   const color = NOTE_COLORS[note];
                   return (
                     <div key={f} style={{ flex: fretFlex(f) }}
@@ -926,6 +961,11 @@ function Fretboard({
                           {note}
                         </div>
                       )}
+                      {shouldHighlightNatural && !isTarget && !noteMatch && (
+                        <div className="relative z-20 w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center text-[10px] font-extrabold text-zinc-900 ring-2 bg-amber-400/80 ring-amber-200/50">
+                          {note}
+                        </div>
+                      )}
                       {!isTarget && !noteMatch && showAll && (
                         <div className="relative z-20 w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center text-[10px] font-extrabold text-zinc-900"
                           style={{ backgroundColor: color }}>
@@ -939,7 +979,7 @@ function Fretboard({
                   );
                 })}
               </div>
-              <div className="w-6 sm:w-7 text-center text-sm sm:text-base font-extrabold text-amber-300 font-mono">{s.name}</div>
+              <div className="w-6 sm:w-7 text-center text-base sm:text-lg font-extrabold text-amber-300 font-mono">{s.name}</div>
             </div>
           );
         })}
