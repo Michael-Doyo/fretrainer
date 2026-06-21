@@ -756,18 +756,26 @@ function IconBtn({ children, onClick, title }: { children: React.ReactNode; onCl
 }
 
 function Tuner({
-  info, freq,
+  info, freq, smoothCents, micOn, onEnableMic,
 }: {
   info: { string: { name: string; openMidi: number }; idx: number; cents: number } | null;
   freq: number | null;
+  smoothCents: number | null;
+  micOn: boolean;
+  onEnableMic: () => void;
 }) {
+  // Traditional analog dial: needle rotates from -45° (–50¢) to +45° (+50¢).
+  const cents = smoothCents ?? 0;
+  const clamped = Math.max(-50, Math.min(50, cents));
+  const angle = (clamped / 50) * 45;
+  const inTune = info && Math.abs(cents) < 5;
   return (
     <div>
-      <div className="flex gap-1 mb-2">
+      <div className="flex gap-1 mb-3">
         {STRINGS.map((s, i) => (
           <div key={i}
             className={`flex-1 text-center py-1.5 rounded text-sm font-bold ${
-              info && info.idx === i && Math.abs(info.cents) < 10 ? "bg-emerald-400 text-zinc-900"
+              info && info.idx === i && Math.abs(cents) < 5 ? "bg-emerald-400 text-zinc-900"
               : info && info.idx === i ? "bg-amber-400 text-zinc-900"
               : "bg-zinc-800 text-zinc-400"
             }`}>
@@ -775,16 +783,45 @@ function Tuner({
           </div>
         ))}
       </div>
-      <div className="relative h-2 bg-zinc-800 rounded-full overflow-hidden">
-        <div className="absolute inset-y-0 left-1/2 w-px bg-zinc-500" />
-        {info && (
-          <div className={`absolute top-0 bottom-0 ${Math.abs(info.cents) < 10 ? "bg-emerald-400" : "bg-amber-400"}`}
-            style={{ left: "50%", width: `${Math.min(Math.abs(info.cents), 50)}%`,
-              transform: info.cents < 0 ? "translateX(-100%)" : "none" }} />
-        )}
+      {/* Analog dial */}
+      <div className="relative mx-auto" style={{ width: 240, height: 130 }}>
+        <div className="absolute inset-0 rounded-t-full bg-gradient-to-b from-zinc-100 to-zinc-300 border-2 border-zinc-700 overflow-hidden">
+          {/* tick marks */}
+          {Array.from({ length: 11 }).map((_, i) => {
+            const a = -45 + i * 9;
+            const isCenter = i === 5;
+            return (
+              <div key={i} className="absolute left-1/2 bottom-0 origin-bottom"
+                style={{ transform: `translateX(-50%) rotate(${a}deg)`, width: 2, height: isCenter ? 60 : 44 }}>
+                <div className={`w-full h-full ${isCenter ? "bg-emerald-600" : "bg-zinc-700"}`} />
+              </div>
+            );
+          })}
+          {/* labels */}
+          <div className="absolute left-2 bottom-1 text-[10px] font-mono text-zinc-700">-50</div>
+          <div className="absolute left-1/2 -translate-x-1/2 top-1 text-[10px] font-mono text-emerald-700 font-bold">0</div>
+          <div className="absolute right-2 bottom-1 text-[10px] font-mono text-zinc-700">+50</div>
+          {/* needle (smooth transition for slow fluctuation) */}
+          <div className="absolute left-1/2 bottom-0 origin-bottom"
+            style={{
+              transform: `translateX(-50%) rotate(${angle}deg)`,
+              width: 3, height: 110,
+              transition: "transform 280ms cubic-bezier(.22,.61,.36,1)",
+            }}>
+            <div className={`w-full h-full rounded-full ${inTune ? "bg-emerald-500" : "bg-rose-500"}`} />
+          </div>
+          <div className="absolute left-1/2 bottom-0 -translate-x-1/2 w-4 h-4 rounded-full bg-zinc-800 border-2 border-zinc-100" />
+        </div>
       </div>
-      <div className="mt-1 text-[11px] text-zinc-400 font-mono">
-        {info ? `${info.string.name}  ${info.cents > 0 ? "+" : ""}${info.cents.toFixed(0)}¢  · ${freq?.toFixed(1)} Hz` : "Play an open string…"}
+      <div className="mt-2 text-center text-sm font-mono">
+        {info ? (
+          <span className={inTune ? "text-emerald-400 font-bold" : "text-amber-400"}>
+            {info.string.name}  {cents > 0 ? "+" : ""}{cents.toFixed(0)}¢ · {freq?.toFixed(1)} Hz
+          </span>
+        ) : micOn ? <span className="text-zinc-500">Play an open string…</span>
+        : (
+          <button onClick={onEnableMic} className="px-3 py-1.5 rounded bg-amber-400 text-zinc-900 font-bold text-xs">Enable mic</button>
+        )}
       </div>
     </div>
   );
