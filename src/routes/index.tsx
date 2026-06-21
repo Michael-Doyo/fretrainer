@@ -625,7 +625,7 @@ function Index() {
             </div>
             <input type="range" min={5} max={50} step={1} value={tolerance}
               onChange={(e) => setTolerance(Number(e.target.value))}
-              className="w-full accent-amber-400 touch-none" />
+              className="w-full accent-amber-400" />
           </div>
           <div data-tour="tour-speed" className={`rounded-lg border bg-zinc-900/60 px-2 py-1.5 ${mode === "play-along" ? "border-amber-500/50" : "border-zinc-800"}`}>
             <div className="flex items-center justify-between text-[10px]">
