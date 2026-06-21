@@ -547,9 +547,9 @@ function Index() {
             <Stat label="Score" value={score} />
             <Stat label="Streak" value={streak} />
             <Stat label="Acc" value={`${accuracy}%`} />
-            <IconBtn onClick={() => setSoundOn((s) => !s)} title="Sound">{soundOn ? "🔊" : "🔇"}</IconBtn>
-            <IconBtn onClick={toggleFs} title="Fullscreen">⛶</IconBtn>
-            <IconBtn onClick={() => setTourStep(0)} title="Tour">?</IconBtn>
+            <span data-tour="tour-sound"><IconBtn onClick={() => setSoundOn((s) => !s)} title="Sound">{soundOn ? "🔊" : "🔇"}</IconBtn></span>
+            <span data-tour="tour-fs"><IconBtn onClick={toggleFs} title="Fullscreen">⛶</IconBtn></span>
+            <span data-tour="tour-tourbtn"><IconBtn onClick={() => setTourStep(0)} title="Tour">?</IconBtn></span>
           </div>
         </header>
 
@@ -694,7 +694,7 @@ function Index() {
         {noteAccRow}
 
         {/* MIC + COVERAGE INLINE */}
-        <div className="flex items-center justify-between gap-2 text-[11px] text-zinc-400">
+        <div data-tour="tour-mic" className="flex items-center justify-between gap-2 text-[11px] text-zinc-400">
           <div className="font-mono">
             🎤 {detectedMidi !== null
               ? `${midiToName(Math.round(detectedMidi))}${midiToOctave(Math.round(detectedMidi))} · ${detectedFreq?.toFixed(0)}Hz`
