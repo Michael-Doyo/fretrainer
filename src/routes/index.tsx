@@ -287,6 +287,25 @@ function Index() {
   const handleFretTap = (s: number, f: number) => {
     if (mode !== "find-note") return;
     if (feedback !== "idle") return;
+    if (findAll) {
+      if (noteAt(s, f) !== target.note || !allowedStrings.includes(s) || stringsHit.has(s)) {
+        recordAttempt(s, f, false); setStreak(0); setFeedback("wrong"); playTone("wrong", soundOn);
+        setTimeout(() => setFeedback("idle"), 450); return;
+      }
+      const newHits = new Set(stringsHit).add(s);
+      setStringsHit(newHits);
+      recordAttempt(s, f, true);
+      setCompleted((c) => new Set(c).add(cellKey(s, f)));
+      playTone("tick", soundOn);
+      if (newHits.size === allowedStrings.length) {
+        setScore((x) => x + 1);
+        setStreak((s2) => { const n = s2 + 1; setBestStreak((b) => Math.max(b, n)); return n; });
+        setFeedback("correct");
+        playTone("correct", soundOn);
+        setTimeout(nextTarget, 650);
+      }
+      return;
+    }
     if (s === target.stringIdx && f === target.fret) handleCorrect();
     else { recordAttempt(s, f, false); setStreak(0); setFeedback("wrong"); playTone("wrong", soundOn); setTimeout(() => setFeedback("idle"), 450); }
   };
