@@ -907,13 +907,13 @@ function Fretboard({
 
   const FretNumRow = (
     <div className="flex items-center px-1">
-      <div className="w-6 sm:w-7" />
+      <div className="w-7 sm:w-9" />
       {Array.from({ length: FRETS + 1 }).map((_, f) => (
         <div key={f} style={{ flex: fretFlex(f) }} className="text-center text-[10px] sm:text-xs text-amber-300/80 font-bold font-mono">
           {f}
         </div>
       ))}
-      <div className="w-6 sm:w-7" />
+      <div className="w-7 sm:w-9" />
     </div>
   );
 
@@ -924,7 +924,7 @@ function Fretboard({
         {/* Inlay markers — positioned between G(sIdx=2) and D(sIdx=3) rows */}
         <div className="absolute left-0 right-0 pointer-events-none z-0 flex"
           style={{ top: "calc(50% - 6px)", height: "12px" }}>
-          <div className="w-6 sm:w-7" />
+          <div className="w-7 sm:w-9" />
           {Array.from({ length: FRETS + 1 }).map((_, f) => (
             <div key={f} style={{ flex: fretFlex(f) }} className="flex items-center justify-center">
               {inlayFrets.includes(f) && (
@@ -939,7 +939,7 @@ function Fretboard({
               )}
             </div>
           ))}
-          <div className="w-6 sm:w-7" />
+          <div className="w-7 sm:w-9" />
         </div>
 
         {STRINGS.map((s, sIdx) => {
