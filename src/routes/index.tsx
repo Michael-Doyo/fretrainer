@@ -503,6 +503,11 @@ function Index() {
     />
   );
 
+  const showChallengeName = mode === "name-note" ? guitarSub === "learn" : true;
+  const progressPct = findAllActive && allowedStrings.length
+    ? Math.round((stringsHit.size / allowedStrings.length) * 100)
+    : 0;
+
   const challenge = (
     <div
       data-tour="tour-challenge"
@@ -513,11 +518,29 @@ function Index() {
       }`}
     >
       <div className="text-5xl sm:text-6xl font-black font-mono leading-none" style={{ color: NOTE_COLORS[target.note] }}>
-        {target.note}
+        {showChallengeName ? target.note : "?"}
       </div>
       {mode !== "play-along" && mode !== "scale" && (mode !== "name-note" || revealStringName) && (
         <div className="text-xs sm:text-sm text-zinc-400 font-mono mt-1">
           string {target.stringIdx + 1}
+        </div>
+      )}
+      {(mode === "find-note" || mode === "guitar") && (
+        <button
+          onClick={() => { setFindAll((v) => !v); setStringsHit(new Set()); setFeedback("idle"); }}
+          className={`mt-2 px-3 py-1 rounded-full text-[11px] font-bold ${
+            findAll ? "bg-amber-400 text-zinc-900" : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
+          }`}
+        >
+          {findAll ? "✓ Find note on all strings" : "Find note on all strings"}
+        </button>
+      )}
+      {findAllActive && (
+        <div className="mt-2 h-2 w-full bg-zinc-800 rounded-full overflow-hidden">
+          <div
+            className="h-full bg-gradient-to-r from-amber-400 to-emerald-400 transition-all duration-300"
+            style={{ width: `${progressPct}%` }}
+          />
         </div>
       )}
     </div>
