@@ -39,9 +39,11 @@ const NOTE_COLORS: Record<string, string> = {
   "G#": "#3b82f6", A: "#8b5cf6", "A#": "#d946ef", B: "#ec4899",
 };
 
-type Mode = "find-note" | "name-note" | "guitar" | "all-strings" | "scale" | "play-along";
+type Mode = "find-note" | "name-note" | "guitar" | "scale" | "play-along";
 type Feedback = "idle" | "correct" | "wrong";
 type Target = { stringIdx: number; fret: number; note: string; midi: number };
+
+const NATURAL_NOTES = ["C", "D", "E", "F", "G", "A", "B"];
 
 // Play-along speed levels: ms per blink step (one per string)
 const SPEED_MS = [5000, 4000, 3000, 2000, 1000, 500, 333]; // index 0..6 (Level 1..7)
