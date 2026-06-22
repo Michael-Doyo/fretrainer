@@ -844,13 +844,15 @@ function Tuner({
 }
 
 function Fretboard({
-  target, showAll, showTarget, hideTargetName, highlightNote, blinkString, feedback, allowedStrings, stringsHit, onCellTap, tourId,
+  target, showAll, showTarget, hideTargetName, highlightNotes, highlightOnlyOpenAnd12, restrictHighlightToString, blinkString, feedback, allowedStrings, stringsHit, onCellTap, tourId,
 }: {
   target: Target;
   showAll: boolean;
   showTarget: boolean;
   hideTargetName: boolean;
-  highlightNote: string | null;
+  highlightNotes: string[] | null;
+  highlightOnlyOpenAnd12: boolean;
+  restrictHighlightToString: number | null;
   blinkString: number | null;
   feedback: Feedback;
   allowedStrings: number[];
@@ -914,7 +916,10 @@ function Fretboard({
                 {Array.from({ length: FRETS + 1 }).map((_, f) => {
                   const isTarget = sIdx === target.stringIdx && f === target.fret;
                   const note = noteAt(sIdx, f);
-                  const noteMatch = highlightNote && note === highlightNote;
+                  const inSet = highlightNotes ? highlightNotes.includes(note) : false;
+                  const fretOk = !highlightOnlyOpenAnd12 || f === 0 || f === 12;
+                  const stringOk = restrictHighlightToString === null || restrictHighlightToString === sIdx;
+                  const noteMatch = inSet && fretOk && stringOk;
                   const color = NOTE_COLORS[note];
                   return (
                     <div key={f} style={{ flex: fretFlex(f) }}
