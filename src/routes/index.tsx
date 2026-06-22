@@ -950,7 +950,7 @@ function Fretboard({
           return (
             <div key={sIdx}
               className={`flex items-center h-7 sm:h-9 transition-opacity relative ${muted ? "opacity-25" : "opacity-100"}`}>
-              <div className="w-6 sm:w-7 text-center text-base sm:text-xl font-extrabold text-amber-300 font-mono">{s.name}</div>
+              <div className="w-7 sm:w-9 text-center text-base sm:text-xl font-extrabold text-amber-300 font-mono">{s.name}</div>
               <div className="flex-1 flex relative">
                 <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 bg-zinc-400"
                   style={{ height: `${thickness}px` }} />
@@ -1001,7 +1001,7 @@ function Fretboard({
                   );
                 })}
               </div>
-              <div className="w-6 sm:w-7 text-center text-base sm:text-xl font-extrabold text-amber-300 font-mono">{s.name}</div>
+              <div className="w-7 sm:w-9 text-center text-base sm:text-xl font-extrabold text-amber-300 font-mono">{s.name}</div>
             </div>
           );
         })}
