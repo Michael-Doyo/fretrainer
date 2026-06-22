@@ -184,6 +184,7 @@ function Index() {
   const [blinkString, setBlinkString] = useState<number | null>(null);
   const [guitarSub, setGuitarSub] = useState<"learn" | "quiz">("learn");
   const [revealStringName, setRevealStringName] = useState(false);
+  const [findAll, setFindAll] = useState(false);
   const [smoothCents, setSmoothCents] = useState<number | null>(null);
 
   const [tourStep, setTourStep] = useState(-1);
@@ -206,7 +207,7 @@ function Index() {
 
   useEffect(() => {
     if (mode === "guitar" && !micOn) startMic();
-    if (mode !== "guitar" && mode !== "all-strings" && micOn && !tunerOpen) stopMic();
+    if (mode !== "guitar" && micOn && !tunerOpen) stopMic();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
 
