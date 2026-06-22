@@ -359,8 +359,8 @@ function Index() {
   /* ── Mic-driven answering ── */
   useEffect(() => {
     if (!detectedMidi || feedback !== "idle") return;
-    if (mode !== "guitar" && mode !== "all-strings") return;
-    if (mode === "all-strings") {
+    if (mode !== "guitar") return;
+    if (findAll) {
       for (const s of allowedStrings) {
         if (stringsHit.has(s)) continue;
         for (let f = 0; f <= FRETS; f++) {
@@ -388,7 +388,7 @@ function Index() {
     const cents = (detectedMidi - target.midi) * 100;
     if (Math.abs(cents) <= tolerance) handleCorrect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [detectedMidi, target, feedback, mode, tolerance, allowedStrings, stringsHit]);
+  }, [detectedMidi, target, feedback, mode, tolerance, allowedStrings, stringsHit, findAll]);
 
   /* ── Tuner ── */
   const tunerInfo = useMemo(() => {
