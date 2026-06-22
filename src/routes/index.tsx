@@ -39,9 +39,11 @@ const NOTE_COLORS: Record<string, string> = {
   "G#": "#3b82f6", A: "#8b5cf6", "A#": "#d946ef", B: "#ec4899",
 };
 
-type Mode = "find-note" | "name-note" | "guitar" | "all-strings" | "scale" | "play-along";
+type Mode = "find-note" | "name-note" | "guitar" | "scale" | "play-along";
 type Feedback = "idle" | "correct" | "wrong";
 type Target = { stringIdx: number; fret: number; note: string; midi: number };
+
+const NATURAL_NOTES = ["C", "D", "E", "F", "G", "A", "B"];
 
 // Play-along speed levels: ms per blink step (one per string)
 const SPEED_MS = [5000, 4000, 3000, 2000, 1000, 500, 333]; // index 0..6 (Level 1..7)
@@ -182,6 +184,7 @@ function Index() {
   const [blinkString, setBlinkString] = useState<number | null>(null);
   const [guitarSub, setGuitarSub] = useState<"learn" | "quiz">("learn");
   const [revealStringName, setRevealStringName] = useState(false);
+  const [findAll, setFindAll] = useState(false);
   const [smoothCents, setSmoothCents] = useState<number | null>(null);
 
   const [tourStep, setTourStep] = useState(-1);
@@ -204,7 +207,7 @@ function Index() {
 
   useEffect(() => {
     if (mode === "guitar" && !micOn) startMic();
-    if (mode !== "guitar" && mode !== "all-strings" && micOn && !tunerOpen) stopMic();
+    if (mode !== "guitar" && micOn && !tunerOpen) stopMic();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
 
@@ -284,6 +287,25 @@ function Index() {
   const handleFretTap = (s: number, f: number) => {
     if (mode !== "find-note") return;
     if (feedback !== "idle") return;
+    if (findAll) {
+      if (noteAt(s, f) !== target.note || !allowedStrings.includes(s) || stringsHit.has(s)) {
+        recordAttempt(s, f, false); setStreak(0); setFeedback("wrong"); playTone("wrong", soundOn);
+        setTimeout(() => setFeedback("idle"), 450); return;
+      }
+      const newHits = new Set(stringsHit).add(s);
+      setStringsHit(newHits);
+      recordAttempt(s, f, true);
+      setCompleted((c) => new Set(c).add(cellKey(s, f)));
+      playTone("tick", soundOn);
+      if (newHits.size === allowedStrings.length) {
+        setScore((x) => x + 1);
+        setStreak((s2) => { const n = s2 + 1; setBestStreak((b) => Math.max(b, n)); return n; });
+        setFeedback("correct");
+        playTone("correct", soundOn);
+        setTimeout(nextTarget, 650);
+      }
+      return;
+    }
     if (s === target.stringIdx && f === target.fret) handleCorrect();
     else { recordAttempt(s, f, false); setStreak(0); setFeedback("wrong"); playTone("wrong", soundOn); setTimeout(() => setFeedback("idle"), 450); }
   };
@@ -356,8 +378,8 @@ function Index() {
   /* ── Mic-driven answering ── */
   useEffect(() => {
     if (!detectedMidi || feedback !== "idle") return;
-    if (mode !== "guitar" && mode !== "all-strings") return;
-    if (mode === "all-strings") {
+    if (mode !== "guitar") return;
+    if (findAll) {
       for (const s of allowedStrings) {
         if (stringsHit.has(s)) continue;
         for (let f = 0; f <= FRETS; f++) {
@@ -385,7 +407,7 @@ function Index() {
     const cents = (detectedMidi - target.midi) * 100;
     if (Math.abs(cents) <= tolerance) handleCorrect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [detectedMidi, target, feedback, mode, tolerance, allowedStrings, stringsHit]);
+  }, [detectedMidi, target, feedback, mode, tolerance, allowedStrings, stringsHit, findAll]);
 
   /* ── Tuner ── */
   const tunerInfo = useMemo(() => {
@@ -436,37 +458,53 @@ function Index() {
     { sel: "tour-mode-find-note", text: "Find It mode: a note is given — tap its position on the fretboard." },
     { sel: "tour-mode-name-note", text: "Name It mode: a fret is shown — pick its note name from four choices." },
     { sel: "tour-mode-guitar", text: "Guitar mode: use your guitar (mic) to answer. Has Learn/Quiz sub-modes." },
-    { sel: "tour-mode-all-strings", text: "All Strings mode: play the given note on every selected string." },
     { sel: "tour-mode-play-along", text: "Play-Along mode: notes blink across strings, low E → high E, with a metronome tick." },
     { sel: "tour-mode-scale", text: "Free Play: explore the board with no quiz." },
     { sel: "tour-showall", text: "Show / hide every note across the fretboard." },
     { sel: "tour-tolerance", text: "Pitch tolerance (cents) — how close your mic pitch must match." },
-    { sel: "tour-speed", text: "Speed levels 1–7 for Play-Along: 1=one note / 5s … 7=three notes / sec." },
     { sel: "tour-strings", text: "Toggle which strings to practice. Disabled strings fade on the board." },
     { sel: "tour-notes", text: "Toggle which notes to focus on this session." },
     { sel: "tour-challenge", text: "Challenge box: the current note. In Name It, the string is revealed only after a correct answer." },
-    { sel: "tour-fretboard", text: "Fretboard. Fret 0 is the nut; gold markers sit between G and D." },
+    { sel: "tour-fretboard", text: "Fretboard. Fret 0 is the nut." },
     { sel: "tour-noterow", text: "Per-note accuracy across your session." },
     { sel: "tour-mic", text: "Mic status and toggle. Mic auto-runs only in Guitar mode." },
   ];
   const closeTour = () => setTourStep(-1);
 
   /* ── Render helpers ── */
+  const findAllActive = findAll && (mode === "find-note" || mode === "guitar");
+  const naturalsHighlight = mode === "scale";
+  const playAlongRestrictString = mode === "play-along" ? blinkString : null;
+
   const fretboard = (
     <Fretboard
       target={target}
       showAll={showAll}
-      showTarget={mode === "name-note" || (mode === "guitar" && guitarSub === "learn") || mode === "all-strings"}
+      showTarget={
+        (mode === "name-note" && guitarSub === "learn") ||
+        (mode === "guitar" && guitarSub === "learn")
+      }
       hideTargetName={true}
-      highlightNote={mode === "scale" || mode === "play-along" ? target.note : null}
+      highlightNotes={
+        naturalsHighlight ? NATURAL_NOTES
+        : mode === "play-along" ? [target.note]
+        : null
+      }
+      highlightOnlyOpenAnd12={naturalsHighlight}
+      restrictHighlightToString={playAlongRestrictString}
       blinkString={mode === "play-along" ? blinkString : null}
       feedback={feedback}
       allowedStrings={allowedStrings}
-      stringsHit={mode === "all-strings" ? stringsHit : null}
+      stringsHit={findAllActive ? stringsHit : null}
       onCellTap={mode === "find-note" ? handleFretTap : undefined}
       tourId="tour-fretboard"
     />
   );
+
+  const showChallengeName = mode === "name-note" ? guitarSub === "learn" : true;
+  const progressPct = findAllActive && allowedStrings.length
+    ? Math.round((stringsHit.size / allowedStrings.length) * 100)
+    : 0;
 
   const challenge = (
     <div
@@ -478,11 +516,29 @@ function Index() {
       }`}
     >
       <div className="text-5xl sm:text-6xl font-black font-mono leading-none" style={{ color: NOTE_COLORS[target.note] }}>
-        {target.note}
+        {showChallengeName ? target.note : "?"}
       </div>
       {mode !== "play-along" && mode !== "scale" && (mode !== "name-note" || revealStringName) && (
         <div className="text-xs sm:text-sm text-zinc-400 font-mono mt-1">
           string {target.stringIdx + 1}
+        </div>
+      )}
+      {(mode === "find-note" || mode === "guitar") && (
+        <button
+          onClick={() => { setFindAll((v) => !v); setStringsHit(new Set()); setFeedback("idle"); }}
+          className={`mt-2 px-3 py-1 rounded-full text-[11px] font-bold ${
+            findAll ? "bg-amber-400 text-zinc-900" : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
+          }`}
+        >
+          {findAll ? "✓ Find note on all strings" : "Find note on all strings"}
+        </button>
+      )}
+      {findAllActive && (
+        <div className="mt-2 h-2 w-full bg-zinc-800 rounded-full overflow-hidden">
+          <div
+            className="h-full bg-gradient-to-r from-amber-400 to-emerald-400 transition-all duration-300"
+            style={{ width: `${progressPct}%` }}
+          />
         </div>
       )}
     </div>
@@ -567,7 +623,6 @@ function Index() {
               ["find-note", "Find It"],
               ["name-note", "Name It"],
               ["guitar", "Guitar 🎸"],
-              ["all-strings", "All Strings"],
               ["play-along", "Play-Along"],
               ["scale", "Free Play"],
             ] as [Mode, string][]
@@ -575,7 +630,7 @@ function Index() {
             <button
               key={m}
               data-tour={`tour-mode-${m}`}
-              onClick={() => { setMode(m); setTimeout(nextTarget, 0); }}
+              onClick={() => { setMode(m); setStringsHit(new Set()); setTimeout(nextTarget, 0); }}
               className={`px-2.5 py-1.5 rounded-full text-xs sm:text-sm font-semibold transition ${
                 mode === m ? "bg-amber-400 text-zinc-900" : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
               }`}
@@ -592,10 +647,12 @@ function Index() {
           </button>
         </div>
 
-        {/* Guitar sub-mode + Play-Along controls */}
-        {mode === "guitar" && (
+        {/* Learn / Quiz sub-mode (Guitar and Name It) */}
+        {(mode === "guitar" || mode === "name-note") && (
           <div data-tour="tour-guitar-sub" className="flex items-center gap-1.5 text-xs">
-            <span className="text-zinc-500 uppercase tracking-wider text-[10px]">Guitar:</span>
+            <span className="text-zinc-500 uppercase tracking-wider text-[10px]">
+              {mode === "guitar" ? "Guitar:" : "Name It:"}
+            </span>
             {(["learn","quiz"] as const).map((g) => (
               <button key={g} onClick={() => setGuitarSub(g)}
                 className={`px-3 py-1 rounded-full font-semibold ${guitarSub === g ? "bg-amber-400 text-zinc-900" : "bg-zinc-800 text-zinc-300"}`}>
@@ -605,44 +662,44 @@ function Index() {
           </div>
         )}
         {mode === "play-along" && (
-          <div data-tour="tour-playalong" className="flex items-center gap-2">
-            <button onClick={() => setPlayingAlong((p) => !p)}
-              className={`px-3 py-1.5 rounded-full text-sm font-bold ${playingAlong ? "bg-rose-500 text-white" : "bg-emerald-400 text-zinc-900"}`}>
-              {playingAlong ? "■ Stop" : "▶ Start"}
-            </button>
-            <div className="text-[10px] text-zinc-400 font-mono">
-              {playingAlong ? `Blink: ${blinkString !== null ? STRINGS[blinkString].name + (blinkString === 5 ? " (low)" : blinkString === 0 ? " (high)" : "") : "—"}` : "Press start"}
+          <div data-tour="tour-playalong" className="space-y-1.5">
+            <div className="flex items-center gap-2">
+              <button onClick={() => setPlayingAlong((p) => !p)}
+                className={`px-3 py-1.5 rounded-full text-sm font-bold ${playingAlong ? "bg-rose-500 text-white" : "bg-emerald-400 text-zinc-900"}`}>
+                {playingAlong ? "■ Stop" : "▶ Start"}
+              </button>
+              <div className="text-[10px] text-zinc-400 font-mono">
+                {playingAlong ? `Blink: ${blinkString !== null ? STRINGS[blinkString].name + (blinkString === 5 ? " (low)" : blinkString === 0 ? " (high)" : "") : "—"}` : "Press start"}
+              </div>
+            </div>
+            <div data-tour="tour-speed" className="rounded-lg border bg-zinc-900/60 px-2 py-1.5 border-amber-500/50">
+              <div className="flex items-center justify-between text-[10px]">
+                <span className="uppercase tracking-wider text-zinc-500">Play-Along Speed · L{speedLevel}</span>
+                <span className="font-mono text-amber-400">
+                  {speedLevel <= 5 ? `1 / ${[5,4,3,2,1][speedLevel - 1]}s` : `${speedLevel - 4}/s`}
+                </span>
+              </div>
+              <div className="grid grid-cols-7 gap-0.5 mt-0.5">
+                {[1,2,3,4,5,6,7].map((lv) => (
+                  <button key={lv} onClick={() => setSpeedLevel(lv)}
+                    className={`py-1 rounded text-[10px] font-bold ${speedLevel === lv ? "bg-amber-400 text-zinc-900" : "bg-zinc-800 text-zinc-400"}`}>
+                    {lv}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         )}
 
-        {/* TOLERANCE + SPEED */}
-        <div className="grid grid-cols-2 gap-2">
-          <div data-tour="tour-tolerance" className="rounded-lg border border-zinc-800 bg-zinc-900/60 px-2 py-1.5">
-            <div className="flex items-center justify-between text-[10px]">
-              <span className="uppercase tracking-wider text-zinc-500">Tolerance</span>
-              <span className="font-mono text-amber-400">±{tolerance}¢</span>
-            </div>
-            <input type="range" min={5} max={50} step={1} value={tolerance}
-              onChange={(e) => setTolerance(Number(e.target.value))}
-              className="w-full accent-amber-400" />
+        {/* TOLERANCE */}
+        <div data-tour="tour-tolerance" className="rounded-lg border border-zinc-800 bg-zinc-900/60 px-2 py-1.5">
+          <div className="flex items-center justify-between text-[10px]">
+            <span className="uppercase tracking-wider text-zinc-500">Pitch Tolerance</span>
+            <span className="font-mono text-amber-400">±{tolerance}¢</span>
           </div>
-          <div data-tour="tour-speed" className={`rounded-lg border bg-zinc-900/60 px-2 py-1.5 ${mode === "play-along" ? "border-amber-500/50" : "border-zinc-800"}`}>
-            <div className="flex items-center justify-between text-[10px]">
-              <span className="uppercase tracking-wider text-zinc-500">Speed L{speedLevel}</span>
-              <span className="font-mono text-amber-400">
-                {speedLevel <= 5 ? `1 / ${[5,4,3,2,1][speedLevel - 1]}s` : `${speedLevel - 4}/s`}
-              </span>
-            </div>
-            <div className="grid grid-cols-7 gap-0.5 mt-0.5">
-              {[1,2,3,4,5,6,7].map((lv) => (
-                <button key={lv} onClick={() => setSpeedLevel(lv)}
-                  className={`py-1 rounded text-[10px] font-bold ${speedLevel === lv ? "bg-amber-400 text-zinc-900" : "bg-zinc-800 text-zinc-400"}`}>
-                  {lv}
-                </button>
-              ))}
-            </div>
-          </div>
+          <input type="range" min={5} max={50} step={1} value={tolerance}
+            onChange={(e) => setTolerance(Number(e.target.value))}
+            className="w-full accent-amber-400" />
         </div>
 
         {/* PRACTICE FILTERS (strings + notes selection — no per-cell %) */}
@@ -828,13 +885,15 @@ function Tuner({
 }
 
 function Fretboard({
-  target, showAll, showTarget, hideTargetName, highlightNote, blinkString, feedback, allowedStrings, stringsHit, onCellTap, tourId,
+  target, showAll, showTarget, hideTargetName, highlightNotes, highlightOnlyOpenAnd12, restrictHighlightToString, blinkString, feedback, allowedStrings, stringsHit, onCellTap, tourId,
 }: {
   target: Target;
   showAll: boolean;
   showTarget: boolean;
   hideTargetName: boolean;
-  highlightNote: string | null;
+  highlightNotes: string[] | null;
+  highlightOnlyOpenAnd12: boolean;
+  restrictHighlightToString: number | null;
   blinkString: number | null;
   feedback: Feedback;
   allowedStrings: number[];
@@ -848,13 +907,13 @@ function Fretboard({
 
   const FretNumRow = (
     <div className="flex items-center px-1">
-      <div className="w-6 sm:w-7" />
+      <div className="w-7 sm:w-9" />
       {Array.from({ length: FRETS + 1 }).map((_, f) => (
         <div key={f} style={{ flex: fretFlex(f) }} className="text-center text-[10px] sm:text-xs text-amber-300/80 font-bold font-mono">
           {f}
         </div>
       ))}
-      <div className="w-6 sm:w-7" />
+      <div className="w-7 sm:w-9" />
     </div>
   );
 
@@ -865,7 +924,7 @@ function Fretboard({
         {/* Inlay markers — positioned between G(sIdx=2) and D(sIdx=3) rows */}
         <div className="absolute left-0 right-0 pointer-events-none z-0 flex"
           style={{ top: "calc(50% - 6px)", height: "12px" }}>
-          <div className="w-6 sm:w-7" />
+          <div className="w-7 sm:w-9" />
           {Array.from({ length: FRETS + 1 }).map((_, f) => (
             <div key={f} style={{ flex: fretFlex(f) }} className="flex items-center justify-center">
               {inlayFrets.includes(f) && (
@@ -880,7 +939,7 @@ function Fretboard({
               )}
             </div>
           ))}
-          <div className="w-6 sm:w-7" />
+          <div className="w-7 sm:w-9" />
         </div>
 
         {STRINGS.map((s, sIdx) => {
@@ -891,14 +950,17 @@ function Fretboard({
           return (
             <div key={sIdx}
               className={`flex items-center h-7 sm:h-9 transition-opacity relative ${muted ? "opacity-25" : "opacity-100"}`}>
-              <div className="w-6 sm:w-7 text-center text-sm sm:text-base font-extrabold text-amber-300 font-mono">{s.name}</div>
+              <div className="w-7 sm:w-9 text-center text-base sm:text-xl font-extrabold text-amber-300 font-mono">{s.name}</div>
               <div className="flex-1 flex relative">
                 <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 bg-zinc-400"
                   style={{ height: `${thickness}px` }} />
                 {Array.from({ length: FRETS + 1 }).map((_, f) => {
                   const isTarget = sIdx === target.stringIdx && f === target.fret;
                   const note = noteAt(sIdx, f);
-                  const noteMatch = highlightNote && note === highlightNote;
+                  const inSet = highlightNotes ? highlightNotes.includes(note) : false;
+                  const fretOk = !highlightOnlyOpenAnd12 || f === 0 || f === 12;
+                  const stringOk = restrictHighlightToString === null || restrictHighlightToString === sIdx;
+                  const noteMatch = inSet && fretOk && stringOk;
                   const color = NOTE_COLORS[note];
                   return (
                     <div key={f} style={{ flex: fretFlex(f) }}
@@ -939,7 +1001,7 @@ function Fretboard({
                   );
                 })}
               </div>
-              <div className="w-6 sm:w-7 text-center text-sm sm:text-base font-extrabold text-amber-300 font-mono">{s.name}</div>
+              <div className="w-7 sm:w-9 text-center text-base sm:text-xl font-extrabold text-amber-300 font-mono">{s.name}</div>
             </div>
           );
         })}
