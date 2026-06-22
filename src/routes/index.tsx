@@ -623,7 +623,6 @@ function Index() {
               ["find-note", "Find It"],
               ["name-note", "Name It"],
               ["guitar", "Guitar 🎸"],
-              ["all-strings", "All Strings"],
               ["play-along", "Play-Along"],
               ["scale", "Free Play"],
             ] as [Mode, string][]
@@ -631,7 +630,7 @@ function Index() {
             <button
               key={m}
               data-tour={`tour-mode-${m}`}
-              onClick={() => { setMode(m); setTimeout(nextTarget, 0); }}
+              onClick={() => { setMode(m); setStringsHit(new Set()); setTimeout(nextTarget, 0); }}
               className={`px-2.5 py-1.5 rounded-full text-xs sm:text-sm font-semibold transition ${
                 mode === m ? "bg-amber-400 text-zinc-900" : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
               }`}
@@ -648,10 +647,12 @@ function Index() {
           </button>
         </div>
 
-        {/* Guitar sub-mode + Play-Along controls */}
-        {mode === "guitar" && (
+        {/* Learn / Quiz sub-mode (Guitar and Name It) */}
+        {(mode === "guitar" || mode === "name-note") && (
           <div data-tour="tour-guitar-sub" className="flex items-center gap-1.5 text-xs">
-            <span className="text-zinc-500 uppercase tracking-wider text-[10px]">Guitar:</span>
+            <span className="text-zinc-500 uppercase tracking-wider text-[10px]">
+              {mode === "guitar" ? "Guitar:" : "Name It:"}
+            </span>
             {(["learn","quiz"] as const).map((g) => (
               <button key={g} onClick={() => setGuitarSub(g)}
                 className={`px-3 py-1 rounded-full font-semibold ${guitarSub === g ? "bg-amber-400 text-zinc-900" : "bg-zinc-800 text-zinc-300"}`}>
@@ -661,44 +662,44 @@ function Index() {
           </div>
         )}
         {mode === "play-along" && (
-          <div data-tour="tour-playalong" className="flex items-center gap-2">
-            <button onClick={() => setPlayingAlong((p) => !p)}
-              className={`px-3 py-1.5 rounded-full text-sm font-bold ${playingAlong ? "bg-rose-500 text-white" : "bg-emerald-400 text-zinc-900"}`}>
-              {playingAlong ? "■ Stop" : "▶ Start"}
-            </button>
-            <div className="text-[10px] text-zinc-400 font-mono">
-              {playingAlong ? `Blink: ${blinkString !== null ? STRINGS[blinkString].name + (blinkString === 5 ? " (low)" : blinkString === 0 ? " (high)" : "") : "—"}` : "Press start"}
+          <div data-tour="tour-playalong" className="space-y-1.5">
+            <div className="flex items-center gap-2">
+              <button onClick={() => setPlayingAlong((p) => !p)}
+                className={`px-3 py-1.5 rounded-full text-sm font-bold ${playingAlong ? "bg-rose-500 text-white" : "bg-emerald-400 text-zinc-900"}`}>
+                {playingAlong ? "■ Stop" : "▶ Start"}
+              </button>
+              <div className="text-[10px] text-zinc-400 font-mono">
+                {playingAlong ? `Blink: ${blinkString !== null ? STRINGS[blinkString].name + (blinkString === 5 ? " (low)" : blinkString === 0 ? " (high)" : "") : "—"}` : "Press start"}
+              </div>
+            </div>
+            <div data-tour="tour-speed" className="rounded-lg border bg-zinc-900/60 px-2 py-1.5 border-amber-500/50">
+              <div className="flex items-center justify-between text-[10px]">
+                <span className="uppercase tracking-wider text-zinc-500">Play-Along Speed · L{speedLevel}</span>
+                <span className="font-mono text-amber-400">
+                  {speedLevel <= 5 ? `1 / ${[5,4,3,2,1][speedLevel - 1]}s` : `${speedLevel - 4}/s`}
+                </span>
+              </div>
+              <div className="grid grid-cols-7 gap-0.5 mt-0.5">
+                {[1,2,3,4,5,6,7].map((lv) => (
+                  <button key={lv} onClick={() => setSpeedLevel(lv)}
+                    className={`py-1 rounded text-[10px] font-bold ${speedLevel === lv ? "bg-amber-400 text-zinc-900" : "bg-zinc-800 text-zinc-400"}`}>
+                    {lv}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         )}
 
-        {/* TOLERANCE + SPEED */}
-        <div className="grid grid-cols-2 gap-2">
-          <div data-tour="tour-tolerance" className="rounded-lg border border-zinc-800 bg-zinc-900/60 px-2 py-1.5">
-            <div className="flex items-center justify-between text-[10px]">
-              <span className="uppercase tracking-wider text-zinc-500">Tolerance</span>
-              <span className="font-mono text-amber-400">±{tolerance}¢</span>
-            </div>
-            <input type="range" min={5} max={50} step={1} value={tolerance}
-              onChange={(e) => setTolerance(Number(e.target.value))}
-              className="w-full accent-amber-400" />
+        {/* TOLERANCE */}
+        <div data-tour="tour-tolerance" className="rounded-lg border border-zinc-800 bg-zinc-900/60 px-2 py-1.5">
+          <div className="flex items-center justify-between text-[10px]">
+            <span className="uppercase tracking-wider text-zinc-500">Pitch Tolerance</span>
+            <span className="font-mono text-amber-400">±{tolerance}¢</span>
           </div>
-          <div data-tour="tour-speed" className={`rounded-lg border bg-zinc-900/60 px-2 py-1.5 ${mode === "play-along" ? "border-amber-500/50" : "border-zinc-800"}`}>
-            <div className="flex items-center justify-between text-[10px]">
-              <span className="uppercase tracking-wider text-zinc-500">Speed L{speedLevel}</span>
-              <span className="font-mono text-amber-400">
-                {speedLevel <= 5 ? `1 / ${[5,4,3,2,1][speedLevel - 1]}s` : `${speedLevel - 4}/s`}
-              </span>
-            </div>
-            <div className="grid grid-cols-7 gap-0.5 mt-0.5">
-              {[1,2,3,4,5,6,7].map((lv) => (
-                <button key={lv} onClick={() => setSpeedLevel(lv)}
-                  className={`py-1 rounded text-[10px] font-bold ${speedLevel === lv ? "bg-amber-400 text-zinc-900" : "bg-zinc-800 text-zinc-400"}`}>
-                  {lv}
-                </button>
-              ))}
-            </div>
-          </div>
+          <input type="range" min={5} max={50} step={1} value={tolerance}
+            onChange={(e) => setTolerance(Number(e.target.value))}
+            className="w-full accent-amber-400" />
         </div>
 
         {/* PRACTICE FILTERS (strings + notes selection — no per-cell %) */}
