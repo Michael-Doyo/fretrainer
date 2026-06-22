@@ -455,17 +455,30 @@ function Index() {
   const closeTour = () => setTourStep(-1);
 
   /* ── Render helpers ── */
+  const findAllActive = findAll && (mode === "find-note" || mode === "guitar");
+  const naturalsHighlight = mode === "scale";
+  const playAlongRestrictString = mode === "play-along" ? blinkString : null;
+
   const fretboard = (
     <Fretboard
       target={target}
       showAll={showAll}
-      showTarget={mode === "name-note" || (mode === "guitar" && guitarSub === "learn") || mode === "all-strings"}
+      showTarget={
+        (mode === "name-note" && guitarSub === "learn") ||
+        (mode === "guitar" && guitarSub === "learn")
+      }
       hideTargetName={true}
-      highlightNote={mode === "scale" || mode === "play-along" ? target.note : null}
+      highlightNotes={
+        naturalsHighlight ? NATURAL_NOTES
+        : mode === "play-along" ? [target.note]
+        : null
+      }
+      highlightOnlyOpenAnd12={naturalsHighlight}
+      restrictHighlightToString={playAlongRestrictString}
       blinkString={mode === "play-along" ? blinkString : null}
       feedback={feedback}
       allowedStrings={allowedStrings}
-      stringsHit={mode === "all-strings" ? stringsHit : null}
+      stringsHit={findAllActive ? stringsHit : null}
       onCellTap={mode === "find-note" ? handleFretTap : undefined}
       tourId="tour-fretboard"
     />
