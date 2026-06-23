@@ -931,13 +931,12 @@ function Fretboard({
 
   const FretNumRow = (
     <div className="flex items-center px-1">
-      <div className="w-7 sm:w-9" />
+      <div className="w-9 sm:w-11" />
       {Array.from({ length: FRETS + 1 }).map((_, f) => (
-        <div key={f} style={{ flex: fretFlex(f) }} className="text-center text-[10px] sm:text-xs text-amber-300/80 font-bold font-mono">
+        <div key={f} style={{ flex: fretFlex(f) }} className="text-center text-[11px] sm:text-sm text-amber-300 font-extrabold font-mono">
           {f}
         </div>
       ))}
-      <div className="w-7 sm:w-9" />
     </div>
   );
 
@@ -948,7 +947,7 @@ function Fretboard({
         {/* Inlay markers — positioned between G(sIdx=2) and D(sIdx=3) rows */}
         <div className="absolute left-0 right-0 pointer-events-none z-0 flex"
           style={{ top: "calc(50% - 6px)", height: "12px" }}>
-          <div className="w-7 sm:w-9" />
+          <div className="w-9 sm:w-11" />
           {Array.from({ length: FRETS + 1 }).map((_, f) => (
             <div key={f} style={{ flex: fretFlex(f) }} className="flex items-center justify-center">
               {inlayFrets.includes(f) && (
@@ -963,7 +962,6 @@ function Fretboard({
               )}
             </div>
           ))}
-          <div className="w-7 sm:w-9" />
         </div>
 
         {STRINGS.map((s, sIdx) => {
@@ -974,7 +972,7 @@ function Fretboard({
           return (
             <div key={sIdx}
               className={`flex items-center h-7 sm:h-9 transition-opacity relative ${muted ? "opacity-25" : "opacity-100"}`}>
-              <div className="w-7 sm:w-9 text-center text-base sm:text-xl font-extrabold text-amber-300 font-mono">{s.name}</div>
+              <div className="w-9 sm:w-11 text-center text-lg sm:text-2xl font-black text-amber-300 font-mono drop-shadow">{s.name}</div>
               <div className="flex-1 flex relative">
                 <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 bg-zinc-400"
                   style={{ height: `${thickness}px` }} />
@@ -1025,7 +1023,6 @@ function Fretboard({
                   );
                 })}
               </div>
-              <div className="w-7 sm:w-9 text-center text-base sm:text-xl font-extrabold text-amber-300 font-mono">{s.name}</div>
             </div>
           );
         })}
