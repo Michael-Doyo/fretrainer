@@ -777,7 +777,7 @@ function Index() {
                 const on = allowedNotes.includes(n);
                 return (
                   <button key={n} onClick={() => toggleNote(n)}
-                    className={`px-1 py-1 rounded-md border font-bold text-xs font-mono transition ${
+                    className={`px-1 py-2 rounded-md border font-extrabold text-base sm:text-lg font-mono transition ${
                       on ? "bg-amber-400 text-zinc-900 border-amber-400" : "bg-zinc-800/60 text-zinc-500 border-zinc-700 opacity-50"
                     }`}>
                     {n}
