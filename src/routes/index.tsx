@@ -186,6 +186,7 @@ function Index() {
   const [revealStringName, setRevealStringName] = useState(false);
   const [findAll, setFindAll] = useState(false);
   const [smoothCents, setSmoothCents] = useState<number | null>(null);
+  const [nextNote, setNextNote] = useState<string | null>(null);
 
   const [tourStep, setTourStep] = useState(-1);
 
@@ -226,11 +227,15 @@ function Index() {
       return r;
     };
     let note = randomNote(allowedNotes);
+    let upcoming = randomNote(allowedNotes);
+    setNextNote(upcoming);
     let seq = buildSeq(note);
     let i = 0;
     const step = () => {
       if (i >= seq.length) {
-        note = randomNote(allowedNotes);
+        note = upcoming;
+        upcoming = randomNote(allowedNotes);
+        setNextNote(upcoming);
         seq = buildSeq(note);
         i = 0;
         if (!seq.length) return;
@@ -243,7 +248,7 @@ function Index() {
     };
     step();
     const id = setInterval(step, SPEED_MS[speedLevel - 1]);
-    return () => clearInterval(id);
+    return () => { clearInterval(id); setNextNote(null); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, playingAlong, speedLevel, allowedNotes, allowedStrings, soundOn]);
 
