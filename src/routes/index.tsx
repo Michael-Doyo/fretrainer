@@ -217,22 +217,35 @@ function Index() {
   // tick each step, advance note when reaching the top.
   useEffect(() => {
     if (mode !== "play-along" || !playingAlong) { setBlinkString(null); return; }
-    setBlinkString(5);
-    setTarget((t) => ({ ...t, note: t.note || randomNote(allowedNotes) }));
-    let s = 5;
-    const id = setInterval(() => {
-      playTone("tick", soundOn);
-      s -= 1;
-      if (s < 0) {
-        const n = randomNote(allowedNotes);
-        setTarget({ stringIdx: 0, fret: 0, note: n, midi: midiAt(0, 0) });
-        s = 5;
+    const buildSeq = (note: string) => {
+      const r: { s: number; f: number }[] = [];
+      for (let s = 5; s >= 0; s--) {
+        if (!allowedStrings.includes(s)) continue;
+        for (let f = 0; f <= FRETS; f++) if (noteAt(s, f) === note) r.push({ s, f });
       }
-      setBlinkString(s);
-    }, SPEED_MS[speedLevel - 1]);
+      return r;
+    };
+    let note = randomNote(allowedNotes);
+    let seq = buildSeq(note);
+    let i = 0;
+    const step = () => {
+      if (i >= seq.length) {
+        note = randomNote(allowedNotes);
+        seq = buildSeq(note);
+        i = 0;
+        if (!seq.length) return;
+      }
+      const p = seq[i];
+      setTarget({ stringIdx: p.s, fret: p.f, note, midi: midiAt(p.s, p.f) });
+      setBlinkString(p.s);
+      playTone("tick", soundOn);
+      i++;
+    };
+    step();
+    const id = setInterval(step, SPEED_MS[speedLevel - 1]);
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, playingAlong, speedLevel, allowedNotes, soundOn]);
+  }, [mode, playingAlong, speedLevel, allowedNotes, allowedStrings, soundOn]);
 
   /* ── Flow ── */
   const cellKey = (s: number, f: number) => `${s}:${f}`;
@@ -421,10 +434,10 @@ function Index() {
     return { string: best, idx: bestIdx, cents: (detectedMidi - best.openMidi) * 100 };
   }, [detectedMidi]);
 
-  // Smooth tuner needle (slower fluctuation) via EMA
+  // Smooth tuner needle (slower fluctuation) via heavy EMA
   useEffect(() => {
     if (!tunerInfo) { setSmoothCents(null); return; }
-    setSmoothCents((prev) => prev == null ? tunerInfo.cents : prev * 0.82 + tunerInfo.cents * 0.18);
+    setSmoothCents((prev) => prev == null ? tunerInfo.cents : prev * 0.93 + tunerInfo.cents * 0.07);
   }, [tunerInfo]);
 
   /* ── Fullscreen ── */
@@ -474,24 +487,23 @@ function Index() {
   /* ── Render helpers ── */
   const findAllActive = findAll && (mode === "find-note" || mode === "guitar");
   const naturalsHighlight = mode === "scale";
-  const playAlongRestrictString = mode === "play-along" ? blinkString : null;
+  const showTargetOnBoard =
+    mode === "name-note" ||
+    mode === "play-along" ||
+    ((mode === "guitar" || mode === "find-note") && guitarSub === "learn");
 
   const fretboard = (
     <Fretboard
       target={target}
       showAll={showAll}
-      showTarget={
-        (mode === "name-note" && guitarSub === "learn") ||
-        (mode === "guitar" && guitarSub === "learn")
-      }
+      showTarget={showTargetOnBoard}
       hideTargetName={true}
       highlightNotes={
-        naturalsHighlight ? NATURAL_NOTES
-        : mode === "play-along" ? [target.note]
+        naturalsHighlight ? [target.note]
         : null
       }
-      highlightOnlyOpenAnd12={naturalsHighlight}
-      restrictHighlightToString={playAlongRestrictString}
+      highlightOnlyOpenAnd12={false}
+      restrictHighlightToString={null}
       blinkString={mode === "play-along" ? blinkString : null}
       feedback={feedback}
       allowedStrings={allowedStrings}
@@ -501,7 +513,7 @@ function Index() {
     />
   );
 
-  const showChallengeName = mode === "name-note" ? guitarSub === "learn" : true;
+  const showChallengeName = true;
   const progressPct = findAllActive && allowedStrings.length
     ? Math.round((stringsHit.size / allowedStrings.length) * 100)
     : 0;
@@ -509,28 +521,40 @@ function Index() {
   const challenge = (
     <div
       data-tour="tour-challenge"
-      className={`rounded-2xl px-4 py-2 border text-center transition-colors ${
+      className={`relative rounded-2xl px-4 py-3 border text-center transition-colors ${
         feedback === "correct" ? "bg-emerald-500/15 border-emerald-500/40"
         : feedback === "wrong" ? "bg-rose-500/15 border-rose-500/40"
         : "bg-zinc-900/60 border-zinc-800"
       }`}
     >
-      <div className="text-5xl sm:text-6xl font-black font-mono leading-none" style={{ color: NOTE_COLORS[target.note] }}>
+      {/* Skip / Next */}
+      <button
+        onClick={() => { setStringsHit(new Set()); setFeedback("idle"); nextTarget(); }}
+        className="absolute top-1.5 right-2 px-2.5 py-1 rounded-full text-[11px] font-bold bg-zinc-800 hover:bg-amber-400 hover:text-zinc-900 text-zinc-200 z-10"
+        title="Skip / next question"
+      >
+        Next ›
+      </button>
+      <div className="text-7xl sm:text-8xl font-black font-mono leading-none" style={{ color: NOTE_COLORS[target.note] }}>
         {showChallengeName ? target.note : "?"}
       </div>
-      {mode !== "play-along" && mode !== "scale" && (mode !== "name-note" || revealStringName) && (
-        <div className="text-xs sm:text-sm text-zinc-400 font-mono mt-1">
-          string {target.stringIdx + 1}
+      {mode !== "play-along" && mode !== "scale" && (
+        <div className="text-sm sm:text-base text-amber-300 font-mono font-bold mt-1">
+          string {target.stringIdx + 1} · {STRINGS[target.stringIdx].name}
         </div>
       )}
       {(mode === "find-note" || mode === "guitar") && (
         <button
           onClick={() => { setFindAll((v) => !v); setStringsHit(new Set()); setFeedback("idle"); }}
-          className={`mt-2 px-3 py-1 rounded-full text-[11px] font-bold ${
-            findAll ? "bg-amber-400 text-zinc-900" : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
-          }`}
+          aria-pressed={findAll}
+          className="absolute bottom-1.5 right-2 flex items-center gap-1.5 px-2 py-1 rounded-full bg-zinc-800/80 hover:bg-zinc-700 text-[10px] font-bold text-zinc-200 z-10"
+          title="Find this note on every selected string"
         >
-          {findAll ? "✓ Find note on all strings" : "Find note on all strings"}
+          <span className="hidden sm:inline">All strings</span>
+          <span className="sm:hidden">All</span>
+          <span className={`relative w-7 h-3.5 rounded-full transition-colors ${findAll ? "bg-amber-400" : "bg-zinc-600"}`}>
+            <span className={`absolute top-0.5 w-2.5 h-2.5 rounded-full bg-white transition-all ${findAll ? "left-4" : "left-0.5"}`} />
+          </span>
         </button>
       )}
       {findAllActive && (
@@ -624,7 +648,7 @@ function Index() {
               ["name-note", "Name It"],
               ["guitar", "Guitar 🎸"],
               ["play-along", "Play-Along"],
-              ["scale", "Free Play"],
+            ["scale", "Free Practice"],
             ] as [Mode, string][]
           ).map(([m, label]) => (
             <button
@@ -647,11 +671,11 @@ function Index() {
           </button>
         </div>
 
-        {/* Learn / Quiz sub-mode (Guitar and Name It) */}
-        {(mode === "guitar" || mode === "name-note") && (
+        {/* Learn / Quiz sub-mode (Guitar and Find It) */}
+        {(mode === "guitar" || mode === "find-note") && (
           <div data-tour="tour-guitar-sub" className="flex items-center gap-1.5 text-xs">
             <span className="text-zinc-500 uppercase tracking-wider text-[10px]">
-              {mode === "guitar" ? "Guitar:" : "Name It:"}
+              {mode === "guitar" ? "Guitar:" : "Find It:"}
             </span>
             {(["learn","quiz"] as const).map((g) => (
               <button key={g} onClick={() => setGuitarSub(g)}
@@ -863,7 +887,7 @@ function Tuner({
             style={{
               transform: `translateX(-50%) rotate(${angle}deg)`,
               width: 3, height: 110,
-              transition: "transform 280ms cubic-bezier(.22,.61,.36,1)",
+              transition: "transform 600ms cubic-bezier(.22,.61,.36,1)",
             }}>
             <div className={`w-full h-full rounded-full ${inTune ? "bg-emerald-500" : "bg-rose-500"}`} />
           </div>
@@ -907,13 +931,12 @@ function Fretboard({
 
   const FretNumRow = (
     <div className="flex items-center px-1">
-      <div className="w-7 sm:w-9" />
+      <div className="w-9 sm:w-11" />
       {Array.from({ length: FRETS + 1 }).map((_, f) => (
-        <div key={f} style={{ flex: fretFlex(f) }} className="text-center text-[10px] sm:text-xs text-amber-300/80 font-bold font-mono">
+        <div key={f} style={{ flex: fretFlex(f) }} className="text-center text-[11px] sm:text-sm text-amber-300 font-extrabold font-mono">
           {f}
         </div>
       ))}
-      <div className="w-7 sm:w-9" />
     </div>
   );
 
@@ -924,7 +947,7 @@ function Fretboard({
         {/* Inlay markers — positioned between G(sIdx=2) and D(sIdx=3) rows */}
         <div className="absolute left-0 right-0 pointer-events-none z-0 flex"
           style={{ top: "calc(50% - 6px)", height: "12px" }}>
-          <div className="w-7 sm:w-9" />
+          <div className="w-9 sm:w-11" />
           {Array.from({ length: FRETS + 1 }).map((_, f) => (
             <div key={f} style={{ flex: fretFlex(f) }} className="flex items-center justify-center">
               {inlayFrets.includes(f) && (
@@ -939,7 +962,6 @@ function Fretboard({
               )}
             </div>
           ))}
-          <div className="w-7 sm:w-9" />
         </div>
 
         {STRINGS.map((s, sIdx) => {
@@ -950,7 +972,7 @@ function Fretboard({
           return (
             <div key={sIdx}
               className={`flex items-center h-7 sm:h-9 transition-opacity relative ${muted ? "opacity-25" : "opacity-100"}`}>
-              <div className="w-7 sm:w-9 text-center text-base sm:text-xl font-extrabold text-amber-300 font-mono">{s.name}</div>
+              <div className="w-9 sm:w-11 text-center text-lg sm:text-2xl font-black text-amber-300 font-mono drop-shadow">{s.name}</div>
               <div className="flex-1 flex relative">
                 <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 bg-zinc-400"
                   style={{ height: `${thickness}px` }} />
@@ -1001,7 +1023,6 @@ function Fretboard({
                   );
                 })}
               </div>
-              <div className="w-7 sm:w-9 text-center text-base sm:text-xl font-extrabold text-amber-300 font-mono">{s.name}</div>
             </div>
           );
         })}
