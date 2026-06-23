@@ -648,7 +648,7 @@ function Index() {
               ["name-note", "Name It"],
               ["guitar", "Guitar 🎸"],
               ["play-along", "Play-Along"],
-              ["scale", "Free Play"],
+            ["scale", "Free Practice"],
             ] as [Mode, string][]
           ).map(([m, label]) => (
             <button
@@ -671,11 +671,11 @@ function Index() {
           </button>
         </div>
 
-        {/* Learn / Quiz sub-mode (Guitar and Name It) */}
-        {(mode === "guitar" || mode === "name-note") && (
+        {/* Learn / Quiz sub-mode (Guitar and Find It) */}
+        {(mode === "guitar" || mode === "find-note") && (
           <div data-tour="tour-guitar-sub" className="flex items-center gap-1.5 text-xs">
             <span className="text-zinc-500 uppercase tracking-wider text-[10px]">
-              {mode === "guitar" ? "Guitar:" : "Name It:"}
+              {mode === "guitar" ? "Guitar:" : "Find It:"}
             </span>
             {(["learn","quiz"] as const).map((g) => (
               <button key={g} onClick={() => setGuitarSub(g)}
