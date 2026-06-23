@@ -535,16 +535,37 @@ function Index() {
       {/* Skip / Next */}
       <button
         onClick={() => { setStringsHit(new Set()); setFeedback("idle"); nextTarget(); }}
-        className="absolute top-1.5 right-2 px-2.5 py-1 rounded-full text-[11px] font-bold bg-zinc-800 hover:bg-amber-400 hover:text-zinc-900 text-zinc-200 z-10"
+        className="absolute top-1.5 right-2 px-4 py-2 rounded-full text-base font-extrabold bg-gradient-to-r from-fuchsia-500 via-amber-400 to-emerald-400 text-zinc-900 shadow-lg shadow-amber-500/30 hover:scale-105 active:scale-95 transition-transform z-10"
         title="Skip / next question"
       >
-        Next ›
+        Next ▶
       </button>
-      <div className="text-7xl sm:text-8xl font-black font-mono leading-none" style={{ color: NOTE_COLORS[target.note] }}>
-        {showChallengeName ? target.note : "?"}
-      </div>
+      {mode === "name-note" ? (
+        <div className="text-7xl sm:text-8xl font-black font-mono leading-none text-amber-300">
+          {STRINGS[target.stringIdx].name}
+        </div>
+      ) : mode === "play-along" ? (
+        <div className="flex items-end justify-center gap-3 leading-none">
+          <div className="text-7xl sm:text-8xl font-black font-mono" style={{ color: NOTE_COLORS[target.note] }}>
+            {target.note}
+          </div>
+          {nextNote && (
+            <div
+              className="font-black font-mono opacity-70"
+              style={{ color: NOTE_COLORS[nextNote], fontSize: "2.25rem", lineHeight: 1 }}
+              title="Next note"
+            >
+              {nextNote}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="text-7xl sm:text-8xl font-black font-mono leading-none" style={{ color: NOTE_COLORS[target.note] }}>
+          {showChallengeName ? target.note : "?"}
+        </div>
+      )}
       {mode !== "play-along" && mode !== "scale" && (
-        <div className="text-sm sm:text-base text-amber-300 font-mono font-bold mt-1">
+        <div className="text-base sm:text-2xl text-amber-300 font-mono font-extrabold mt-1">
           string {target.stringIdx + 1} · {STRINGS[target.stringIdx].name}
         </div>
       )}
@@ -552,13 +573,13 @@ function Index() {
         <button
           onClick={() => { setFindAll((v) => !v); setStringsHit(new Set()); setFeedback("idle"); }}
           aria-pressed={findAll}
-          className="absolute bottom-1.5 right-2 flex items-center gap-1.5 px-2 py-1 rounded-full bg-zinc-800/80 hover:bg-zinc-700 text-[10px] font-bold text-zinc-200 z-10"
+          className="absolute bottom-1.5 right-2 flex items-center gap-2 px-3 py-1.5 rounded-full bg-zinc-800/80 hover:bg-zinc-700 text-sm font-bold text-zinc-100 z-10"
           title="Find this note on every selected string"
         >
           <span className="hidden sm:inline">All strings</span>
           <span className="sm:hidden">All</span>
-          <span className={`relative w-7 h-3.5 rounded-full transition-colors ${findAll ? "bg-amber-400" : "bg-zinc-600"}`}>
-            <span className={`absolute top-0.5 w-2.5 h-2.5 rounded-full bg-white transition-all ${findAll ? "left-4" : "left-0.5"}`} />
+          <span className={`relative w-12 h-6 rounded-full transition-colors ${findAll ? "bg-amber-400" : "bg-zinc-600"}`}>
+            <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all ${findAll ? "left-[26px]" : "left-0.5"}`} />
           </span>
         </button>
       )}
