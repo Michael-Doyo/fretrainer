@@ -887,7 +887,7 @@ function Tuner({
             style={{
               transform: `translateX(-50%) rotate(${angle}deg)`,
               width: 3, height: 110,
-              transition: "transform 280ms cubic-bezier(.22,.61,.36,1)",
+              transition: "transform 600ms cubic-bezier(.22,.61,.36,1)",
             }}>
             <div className={`w-full h-full rounded-full ${inTune ? "bg-emerald-500" : "bg-rose-500"}`} />
           </div>
